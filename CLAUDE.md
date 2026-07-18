@@ -57,6 +57,20 @@ Key facts:
 - Reverb/sustain ambiguity: when the decay estimate maxes out (6 s) on a heavily
   driven signal, the chain reports "reverb (uncertain)" instead of claiming a hall
   — distortion sustain and big reverb are indistinguishable there.
+- 2026-07-18 audit pass (user-directed "find every flaw"): input is trimmed to
+  MAX_ANALYSIS_SECONDS (150 s) BEFORE Demucs so CPU separation never processes
+  audio the analysis discards; YouTube downloads are capped at 20 minutes
+  (MAX_YOUTUBE_MINUTES) and stream progress % into the stage log; merged timeline
+  segments are re-analyzed over their full span instead of keeping the first
+  half's features; POST /api/jobs/upload enables drag-and-drop local files
+  (stored under jobs/uploads/); /api/health reports model_available; finished
+  reports render once per job (re-rendering on poll ticks was resetting the stem
+  player); static assets carry ?v= cache-busting (bump on every web/ change!).
+- Dashboard v3 (same day): full charcoal retheme — neutral zinc surfaces, amber
+  is the ONLY warm element (user: "charcoal based rather than brown"). App-shell
+  layout (fixed topbar with status chips, scrollable library rail, sticky
+  section tabs with scroll-spy over Tone/Match/Rig/Notes/Data), toasts,
+  drag-drop zone, relative timestamps, hover-revealed delete.
 - Dashboard (v2, 2026-07-18, user-directed redesign): tone match promoted to the
   top with bipolar delta bars per aspect; pedal cards and amp EQ render SVG rotary
   knobs (needle animates on scope change; static under prefers-reduced-motion);

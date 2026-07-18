@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FretScope</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231c1916'/><circle cx='16' cy='16' r='9' fill='none' stroke='%23e8a13c' stroke-width='2.5'/><circle cx='16' cy='16' r='3' fill='%23e8a13c'/></svg>">
+  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2316181c'/><circle cx='16' cy='16' r='9' fill='none' stroke='%23f0a63f' stroke-width='2.5'/><circle cx='16' cy='16' r='3' fill='%23f0a63f'/></svg>">
 </head>
 <body>
 
@@ -17,18 +17,28 @@
       <line x1="16" y1="5" x2="16" y2="10" stroke="currentColor" stroke-width="2"/>
     </svg>
     <span class="brand-name">FretScope</span>
-    <span class="brand-tag">guitar tone and tab analyzer</span>
   </div>
-  <div class="health" id="health" title="engine status"></div>
+  <div class="health" id="health"></div>
 </header>
 
 <main class="layout">
 
   <aside class="rack">
     <form id="submit-form" class="input-panel">
-      <label for="source">Song input</label>
+      <div class="input-title">New analysis</div>
       <input id="source" type="text" autocomplete="off" spellcheck="false"
-             placeholder="Paste a YouTube link or a local file path">
+             placeholder="Paste a YouTube link">
+      <div class="dropzone" id="dropzone">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 16V4m0 0l-4 4m4-4l4 4" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>or drop an audio file here /
+          <button type="button" class="linklike" id="browse-btn">browse</button></span>
+        <input type="file" id="upload-file" accept="audio/*" hidden>
+      </div>
       <div class="input-row">
         <label class="check">
           <input type="checkbox" id="use-separation" checked>
@@ -39,12 +49,10 @@
       <p class="input-error" id="submit-error" hidden></p>
     </form>
 
-    <div class="joblist-head">
-      <h2>Songs</h2>
-    </div>
+    <div class="joblist-head"><h2>Library</h2></div>
     <ul class="joblist" id="joblist">
       <li class="joblist-empty" id="joblist-empty">
-        Nothing analyzed yet. Paste a YouTube link above to start.
+        Nothing analyzed yet. Paste a link or drop a file to start.
       </li>
     </ul>
   </aside>
@@ -57,7 +65,7 @@
         <line x1="60" y1="8" x2="60" y2="26" stroke="currentColor" stroke-width="3"/>
         <line x1="60" y1="94" x2="60" y2="112" stroke="currentColor" stroke-width="3"/>
       </svg>
-      <p>Pick a song from the rack, or analyze a new one.</p>
+      <p>Pick a song from the library, or analyze a new one.</p>
     </div>
 
     <div id="progress-view" hidden>
@@ -66,31 +74,42 @@
     </div>
 
     <article id="report-view" hidden>
-      <h1 class="song-title" id="report-title"></h1>
-      <p class="song-sub" id="report-sub"></p>
+      <header class="report-head">
+        <div>
+          <h1 class="song-title" id="report-title"></h1>
+          <p class="song-sub" id="report-sub"></p>
+        </div>
+        <div class="player" id="player-wrap" hidden>
+          <span class="player-label">Isolated stem</span>
+          <audio controls preload="none" id="stem-audio"></audio>
+        </div>
+      </header>
 
-      <div class="player" id="player-wrap" hidden>
-        <span class="player-label">Isolated guitar stem</span>
-        <audio controls preload="none" id="stem-audio"></audio>
-      </div>
+      <nav class="section-tabs" id="section-tabs">
+        <button type="button" data-target="panel-tone" class="active">Tone</button>
+        <button type="button" data-target="panel-match">Match</button>
+        <button type="button" data-target="panel-rig">Rig</button>
+        <button type="button" data-target="panel-transcription">Notes</button>
+        <button type="button" data-target="panel-data">Data</button>
+      </nav>
 
       <div class="banner" id="separation-banner"></div>
 
-      <section class="panel">
+      <section class="panel" id="panel-tone">
         <div class="panel-head">
           <h2>Tone</h2>
           <span class="conf-badge conf-estimated">estimated</span>
         </div>
         <p class="panel-note" id="tone-summary"></p>
         <div class="timeline-wrap" id="timeline-wrap">
-          <div class="timeline-label" id="timeline-label">Tone over the song (click a section)</div>
+          <div class="timeline-label" id="timeline-label"></div>
           <div class="timeline" id="timeline"></div>
           <div class="timeline-ruler" id="timeline-ruler"></div>
         </div>
         <div class="scope-note" id="scope-note"></div>
       </section>
 
-      <section class="panel match-panel">
+      <section class="panel match-panel" id="panel-match">
         <div class="panel-head">
           <h2>Match my tone</h2>
           <span class="conf-badge conf-estimated">estimated</span>
@@ -111,7 +130,7 @@
         <p class="panel-note match-caveat" id="match-caveat" hidden></p>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="panel-rig">
         <div class="panel-head">
           <h2>The rig</h2>
           <span class="conf-badge conf-estimated">estimated</span>
@@ -126,7 +145,7 @@
         </div>
       </section>
 
-      <section class="panel" id="transcription-panel">
+      <section class="panel" id="panel-transcription">
         <div class="panel-head">
           <h2 id="transcription-heading">Tab</h2>
           <span class="conf-badge conf-heuristic" id="transcription-conf">heuristic</span>
@@ -139,7 +158,7 @@
         </details>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="panel-data">
         <div class="panel-head">
           <h2>Measurements</h2>
           <span class="conf-badge conf-verified">verified</span>
@@ -161,6 +180,8 @@
 
 </main>
 
-<script src="app.js"></script>
+<div class="toasts" id="toasts"></div>
+
+<script src="app.js?v=5"></script>
 </body>
 </html>

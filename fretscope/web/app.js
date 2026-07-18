@@ -8,12 +8,31 @@ const state = {
   jobs: [],
   selected: null,
   pollTimer: null,
+  pollTick: 0,
   report: null,        // report of the currently displayed job
   reportJobId: null,
+  renderedKey: null,   // job.id + status of the last fully rendered report
   segment: -1,         // -1 = whole song, else tone-timeline section index
   recorder: null,
   recTimer: null,
 };
+
+function toast(msg, kind) {
+  const box = document.createElement("div");
+  box.className = "toast" + (kind === "err" ? " err" : "");
+  box.textContent = msg;
+  $("toasts").appendChild(box);
+  setTimeout(() => box.remove(), 4200);
+}
+
+function relTime(iso) {
+  if (!iso) return "";
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return `${Math.floor(s / 86400)} d ago`;
+}
 
 /* ---------- api ---------- */
 
@@ -32,14 +51,14 @@ async function api(path, opts) {
 async function refreshHealth() {
   try {
     const h = await api("/api/health");
-    const bits = [];
-    bits.push(h.ffmpeg ? "ffmpeg ready" : '<span class="warn">ffmpeg missing</span>');
-    bits.push(h.separation_available
-      ? "separation ready"
-      : '<span class="warn">separation off (full mix)</span>');
-    $("health").innerHTML = bits.join(" &nbsp;&middot;&nbsp; ");
+    const chip = (ok, on, off) =>
+      `<span class="chip ${ok ? "" : "off"}">${ok ? on : off}</span>`;
+    $("health").innerHTML =
+      chip(h.ffmpeg, "audio engine", "ffmpeg missing") +
+      chip(h.separation_available, "separation", "separation off") +
+      chip(h.model_available, "tone model", "no tone model");
   } catch (e) {
-    $("health").innerHTML = '<span class="warn">server unreachable</span>';
+    $("health").innerHTML = '<span class="chip off">server unreachable</span>';
   }
 }
 
@@ -63,6 +82,7 @@ $("submit-form").addEventListener("submit", async (ev) => {
     });
     $("source").value = "";
     state.selected = job.id;
+    toast(`Queued: ${job.title || job.source}`);
     await refreshJobs();
   } catch (e) {
     errEl.textContent = e.message;
@@ -70,6 +90,59 @@ $("submit-form").addEventListener("submit", async (ev) => {
   } finally {
     $("submit-btn").disabled = false;
   }
+});
+
+/* ---------- file upload (drag-drop + browse) ---------- */
+
+async function uploadFile(file) {
+  const errEl = $("submit-error");
+  errEl.hidden = true;
+  $("submit-btn").disabled = true;
+  try {
+    const form = new FormData();
+    form.append("audio", file, file.name);
+    form.append("use_separation", String($("use-separation").checked));
+    const res = await fetch("/api/jobs/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try { detail = (await res.json()).detail || detail; } catch (e) { /* keep */ }
+      throw new Error(detail);
+    }
+    const job = await res.json();
+    state.selected = job.id;
+    toast(`Queued: ${job.title}`);
+    await refreshJobs();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.hidden = false;
+    toast(e.message, "err");
+  } finally {
+    $("submit-btn").disabled = false;
+  }
+}
+
+const dropzone = $("dropzone");
+$("browse-btn").addEventListener("click", () => $("upload-file").click());
+$("upload-file").addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if (file) uploadFile(file);
+  ev.target.value = "";
+});
+for (const evName of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(evName, (ev) => {
+    ev.preventDefault();
+    dropzone.classList.add("drag");
+  });
+}
+for (const evName of ["dragleave", "drop"]) {
+  dropzone.addEventListener(evName, (ev) => {
+    ev.preventDefault();
+    dropzone.classList.remove("drag");
+  });
+}
+dropzone.addEventListener("drop", (ev) => {
+  const file = ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (file) uploadFile(file);
 });
 
 /* ---------- job list ---------- */
@@ -98,15 +171,20 @@ function renderJobs() {
       </span>
       <button class="del" title="delete this analysis" aria-label="delete">&times;</button>`;
     li.querySelector(".jobtitle").textContent = job.title || job.source;
-    li.querySelector(".jobsub").textContent = statusLabel(job);
+    const when = relTime(job.finished_at || job.created_at);
+    li.querySelector(".jobsub").textContent =
+      statusLabel(job) + (when ? ` · ${when}` : "");
     li.addEventListener("click", () => { state.selected = job.id; render(); });
     li.querySelector(".del").addEventListener("click", async (ev) => {
       ev.stopPropagation();
       try {
         await api(`/api/jobs/${job.id}`, { method: "DELETE" });
         if (state.selected === job.id) state.selected = null;
+        toast("Analysis deleted");
         await refreshJobs();
-      } catch (e) { /* active job; ignore */ }
+      } catch (e) {
+        toast("Can't delete while the job is running", "err");
+      }
     });
     ul.appendChild(li);
   }
@@ -162,10 +240,14 @@ function renderReport(job, report) {
     sub.textContent = report.meta.source || "";
   }
 
-  // stem player
+  // stem player: only touch src when it actually changes, or playback resets
   const hasStem = report.separation && report.separation.separated;
   $("player-wrap").hidden = !hasStem;
-  if (hasStem) $("stem-audio").src = `/api/jobs/${job.id}/stem`;
+  if (hasStem) {
+    const src = `/api/jobs/${job.id}/stem`;
+    const audio = $("stem-audio");
+    if (!audio.src.endsWith(src)) audio.src = src;
+  }
 
   // separation banner
   const sep = report.separation;
@@ -209,8 +291,13 @@ function renderReport(job, report) {
     note.textContent = "";
   }
 
-  // tone (scoped: whole song or a timeline section)
-  if (state.reportJobId !== job.id) state.segment = -1;
+  // switching songs: reset scope and clear the previous song's match results
+  if (state.reportJobId !== job.id) {
+    state.segment = -1;
+    $("advice-list").innerHTML = "";
+    $("match-caveat").hidden = true;
+    $("match-error").hidden = true;
+  }
   state.report = report;
   state.reportJobId = job.id;
   renderTimeline(report);
@@ -589,18 +676,27 @@ async function refreshJobs() {
 async function render() {
   renderJobs();
   const job = state.jobs.find((j) => j.id === state.selected);
-  if (!job) { show("stage-empty"); return; }
+  if (!job) { show("stage-empty"); state.renderedKey = null; return; }
 
   if (job.status === "queued" || job.status === "running") {
+    state.renderedKey = null;
     renderProgress(job);
   } else if (job.status === "done") {
+    // A finished report is static: re-rendering it on every poll tick would
+    // reset the stem player and lose scroll/details state. Render once.
+    const key = `${job.id}:${job.status}`;
+    if (state.renderedKey === key) return;
     try {
       const report = await api(`/api/jobs/${job.id}/report`);
       renderReport(job, report);
+      state.renderedKey = key;
+      const wasRunning = state.reportJobId === job.id;
+      if (!wasRunning) $("stage").scrollTop = 0;
     } catch (e) {
       renderError({ ...job, error: "report missing: " + e.message });
     }
   } else {
+    state.renderedKey = null;
     renderError(job);
   }
 }
@@ -608,9 +704,37 @@ async function render() {
 function startPolling() {
   if (state.pollTimer) clearInterval(state.pollTimer);
   state.pollTimer = setInterval(async () => {
+    state.pollTick += 1;
     const active = state.jobs.some((j) => j.status === "queued" || j.status === "running");
-    if (active) await refreshJobs();
-  }, 1500);
+    // fast poll while something runs; slow heartbeat otherwise so the library
+    // stays fresh (other tabs, deleted jobs) without hammering the server
+    if (active || state.pollTick % 5 === 0) await refreshJobs();
+  }, 1600);
+}
+
+/* ---------- section tabs ---------- */
+
+const tabsNav = $("section-tabs");
+tabsNav.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-target]");
+  if (!btn) return;
+  const el = $(btn.dataset.target);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+// scroll-spy: highlight the tab of the section nearest the top of the stage
+const spy = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    for (const b of tabsNav.querySelectorAll("button")) {
+      b.classList.toggle("active", b.dataset.target === entry.target.id);
+    }
+  }
+}, { root: $("stage"), rootMargin: "-15% 0px -70% 0px" });
+for (const id of ["panel-tone", "panel-match", "panel-rig",
+                  "panel-transcription", "panel-data"]) {
+  const el = $(id);
+  if (el) spy.observe(el);
 }
 
 refreshHealth();
