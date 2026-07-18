@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fretscope"
+version = "0.1.0"
+description = "Guitar Tone & Tab Analyzer: isolate the guitar in a song, transcribe it to tab/chords, and estimate the tone chain that produced it."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "librosa>=0.10.2",
+    "soundfile>=0.12",
+    "yt-dlp>=2024.10.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+separation = [
+    "demucs>=4.0.1",
+    "torch>=2.2",
+    "torchaudio>=2.2",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+fretscope = "fretscope.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["fretscope*"]
+
+[tool.setuptools.package-data]
+"fretscope.web" = ["*.html", "*.css", "*.js", "*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

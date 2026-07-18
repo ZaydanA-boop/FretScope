@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project data (downloaded audio, stems, model caches, job output)
+data/
+jobs/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+!tests/fixtures/*.wav
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
