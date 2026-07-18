@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FretScope</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231c1916'/><circle cx='16' cy='16' r='9' fill='none' stroke='%23e8a13c' stroke-width='2.5'/><circle cx='16' cy='16' r='3' fill='%23e8a13c'/></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="16" cy="16" r="3.5" fill="currentColor"/>
+      <line x1="16" y1="5" x2="16" y2="10" stroke="currentColor" stroke-width="2"/>
+    </svg>
+    <span class="brand-name">FretScope</span>
+    <span class="brand-tag">guitar tone and tab analyzer</span>
+  </div>
+  <div class="health" id="health" title="engine status"></div>
+</header>
+
+<main class="layout">
+
+  <aside class="rack">
+    <form id="submit-form" class="input-panel">
+      <label for="source">Song input</label>
+      <input id="source" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Paste a YouTube link or a local file path">
+      <div class="input-row">
+        <label class="check">
+          <input type="checkbox" id="use-separation" checked>
+          <span>Isolate guitar first (slower, better)</span>
+        </label>
+        <button type="submit" id="submit-btn">Analyze</button>
+      </div>
+      <p class="input-error" id="submit-error" hidden></p>
+    </form>
+
+    <div class="joblist-head">
+      <h2>Songs</h2>
+    </div>
+    <ul class="joblist" id="joblist">
+      <li class="joblist-empty" id="joblist-empty">
+        Nothing analyzed yet. Paste a YouTube link above to start.
+      </li>
+    </ul>
+  </aside>
+
+  <section class="stage" id="stage">
+    <div class="stage-empty" id="stage-empty">
+      <svg viewBox="0 0 120 120" class="stage-empty-art" aria-hidden="true">
+        <circle cx="60" cy="60" r="44" fill="none" stroke="currentColor" stroke-width="3"/>
+        <circle cx="60" cy="60" r="12" fill="currentColor"/>
+        <line x1="60" y1="8" x2="60" y2="26" stroke="currentColor" stroke-width="3"/>
+        <line x1="60" y1="94" x2="60" y2="112" stroke="currentColor" stroke-width="3"/>
+      </svg>
+      <p>Pick a song from the rack, or analyze a new one.</p>
+    </div>
+
+    <div id="progress-view" hidden>
+      <h1 class="song-title" id="progress-title"></h1>
+      <ol class="stagelog" id="stagelog"></ol>
+    </div>
+
+    <article id="report-view" hidden>
+      <h1 class="song-title" id="report-title"></h1>
+      <p class="song-sub" id="report-sub"></p>
+
+      <div class="player" id="player-wrap" hidden>
+        <span class="player-label">Isolated guitar stem</span>
+        <audio controls preload="none" id="stem-audio"></audio>
+      </div>
+
+      <div class="banner" id="separation-banner"></div>
+
+      <section class="panel" id="transcription-panel">
+        <div class="panel-head">
+          <h2 id="transcription-heading">Tab</h2>
+          <span class="conf-badge conf-heuristic" id="transcription-conf">heuristic</span>
+        </div>
+        <p class="panel-note" id="classification-note"></p>
+        <pre class="tabview" id="transcription-body"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Tone breakdown</h2>
+          <span class="conf-badge conf-estimated">estimated</span>
+        </div>
+        <p class="panel-note" id="tone-summary"></p>
+        <div class="pedalboard" id="pedalboard"></div>
+        <div class="amp" id="amp-eq"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Measurements</h2>
+          <span class="conf-badge conf-verified">verified</span>
+        </div>
+        <dl class="measurements" id="measurements"></dl>
+      </section>
+
+      <section class="panel limitations">
+        <div class="panel-head"><h2>Limits of this analysis</h2></div>
+        <ul id="limitations"></ul>
+      </section>
+    </article>
+
+    <div id="error-view" hidden>
+      <h1 class="song-title" id="error-title"></h1>
+      <div class="banner banner-error" id="error-body"></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
