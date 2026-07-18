@@ -3,7 +3,8 @@ from pathlib import Path
 import numpy as np
 
 from fretscope import ANALYSIS_SR
-from fretscope.audio_io import find_ffmpeg, is_youtube_url, load_audio, save_wav, to_wav
+from fretscope.audio_io import (find_ffmpeg, is_youtube_url, load_audio, save_wav,
+                                to_wav, trim_wav, wav_duration)
 
 
 def test_save_and_load_roundtrip(tmp_path: Path, sine_a4):
@@ -13,6 +14,15 @@ def test_save_and_load_roundtrip(tmp_path: Path, sine_a4):
     assert y.dtype == np.float32
     assert abs(len(y) - len(sine_a4)) < 4
     assert np.max(np.abs(y - sine_a4)) < 1e-3
+
+
+def test_trim_and_duration(tmp_path: Path, sine_a4):
+    import numpy as np
+    long = np.tile(sine_a4, 5)  # 5 s
+    src = save_wav(tmp_path / "long.wav", long)
+    assert abs(wav_duration(src) - 5.0) < 0.05
+    out = trim_wav(src, tmp_path / "short.wav", 2.0)
+    assert abs(wav_duration(out) - 2.0) < 0.1
 
 
 def test_is_youtube_url():

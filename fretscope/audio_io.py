@@ -115,6 +115,22 @@ def save_wav(path: Path | str, y: np.ndarray, sr: int = ANALYSIS_SR) -> Path:
     return path
 
 
+def trim_wav(src: Path | str, dst: Path | str, seconds: float) -> Path:
+    """Copy the first `seconds` of a WAV via ffmpeg (stream copy, fast)."""
+    src, dst = Path(src), Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [require_ffmpeg(), "-y", "-i", str(src), "-t", str(seconds),
+           "-c", "copy", str(dst)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise AudioIOError(f"ffmpeg trim failed: {proc.stderr[-500:]}")
+    return dst
+
+
+def wav_duration(path: Path | str) -> float:
+    return float(sf.info(str(path)).duration)
+
+
 def is_youtube_url(text: str) -> bool:
     text = text.strip().lower()
     return text.startswith(("http://", "https://")) and (
@@ -122,11 +138,16 @@ def is_youtube_url(text: str) -> bool:
     )
 
 
+MAX_YOUTUBE_MINUTES = 20
+
+
 def download_youtube(url: str, out_dir: Path | str,
                      progress_hook=None) -> tuple[Path, dict]:
     """Download the audio track of a YouTube video.
 
     Returns (path to downloaded audio file, info dict with title/uploader/duration).
+    Refuses videos longer than MAX_YOUTUBE_MINUTES — those are podcasts/streams,
+    not songs, and would grind the CPU pipeline for nothing.
     Conversion to WAV happens later in load_audio, so no ffmpeg post-processing here.
     """
     import yt_dlp  # local import: not needed for tests / offline use
@@ -146,6 +167,13 @@ def download_youtube(url: str, out_dir: Path | str,
     if progress_hook:
         opts["progress_hooks"] = [progress_hook]
     with yt_dlp.YoutubeDL(opts) as ydl:
+        probe = ydl.extract_info(url, download=False)
+        duration = probe.get("duration") or 0
+        if duration > MAX_YOUTUBE_MINUTES * 60:
+            raise AudioIOError(
+                f"video is {duration / 60:.0f} minutes long; FretScope caps input "
+                f"at {MAX_YOUTUBE_MINUTES} minutes (paste a single song, not a "
+                "stream/compilation)")
         info = ydl.extract_info(url, download=True)
     files = sorted(out_dir.glob("source.*"))
     if not files:

@@ -38,14 +38,15 @@ class JobManager:
 
     # ---- public API ---------------------------------------------------------
 
-    def submit(self, source: str, use_separation: bool = True) -> dict:
+    def submit(self, source: str, use_separation: bool = True,
+               title: str | None = None) -> dict:
         job_id = f"{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
         job_dir = self.root / job_id
         job_dir.mkdir(parents=True)
         state = {
             "id": job_id,
             "source": source,
-            "title": self._guess_title(source),
+            "title": title or self._guess_title(source),
             "use_separation": use_separation,
             "status": "queued",
             "created_at": _now(),

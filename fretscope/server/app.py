@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from ..audio_io import find_ffmpeg, is_youtube_url
 from ..separation import separation_available
+from ..tone.learned import model_available
 from .jobs import JobManager
 
 app = FastAPI(title="FretScope", docs_url="/api/docs")
@@ -44,6 +45,7 @@ def health() -> dict:
         "ok": True,
         "ffmpeg": find_ffmpeg() is not None,
         "separation_available": separation_available(),
+        "model_available": model_available(),
     }
 
 
@@ -56,6 +58,21 @@ def create_job(req: JobRequest) -> dict:
         raise HTTPException(422, "source must be a YouTube URL or an existing "
                                  "audio file path on this machine")
     return manager.submit(source, use_separation=req.use_separation)
+
+
+@app.post("/api/jobs/upload")
+async def create_job_from_upload(audio: UploadFile = File(...),
+                                 use_separation: bool = Form(True)) -> dict:
+    """Drag-and-drop / file-picker path: store the file, then queue it."""
+    import uuid
+
+    name = Path(audio.filename or "upload.bin")
+    uploads = JOBS_ROOT / "uploads"
+    uploads.mkdir(parents=True, exist_ok=True)
+    dest = uploads / f"{uuid.uuid4().hex[:10]}{name.suffix or '.bin'}"
+    dest.write_bytes(await audio.read())
+    return manager.submit(str(dest), use_separation=use_separation,
+                          title=name.stem)
 
 
 @app.get("/api/jobs")

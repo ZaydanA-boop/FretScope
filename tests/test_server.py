@@ -19,6 +19,27 @@ def client(tmp_path, monkeypatch):
 def test_health(client):
     h = client.get("/api/health").json()
     assert h["ok"] is True and h["ffmpeg"] is True
+    assert "model_available" in h and "separation_available" in h
+
+
+def test_upload_job(client, tmp_path, lead_line):
+    import io
+    import time
+    src = save_wav(tmp_path / "riff take 3.wav", lead_line)
+    res = client.post("/api/jobs/upload",
+                      files={"audio": ("riff take 3.wav",
+                                       io.BytesIO(src.read_bytes()), "audio/wav")},
+                      data={"use_separation": "false"})
+    assert res.status_code == 200, res.text
+    job = res.json()
+    assert job["title"] == "riff take 3"
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        state = client.get(f"/api/jobs/{job['id']}").json()
+        if state["status"] in ("done", "failed"):
+            break
+        time.sleep(0.5)
+    assert state["status"] == "done", state.get("error")
 
 
 def test_dashboard_served(client):

@@ -118,28 +118,33 @@ def tone_timeline(y: np.ndarray, sr: int) -> list[ToneSegment]:
 
     from .learned import predict_params
 
-    segments: list[ToneSegment] = []
-    for t0, t1 in zip(edges[:-1], edges[1:]):
+    def analyze_span(t0: float, t1: float) -> ToneSegment | None:
         seg_audio = y[int(t0 * sr): int(t1 * sr)]
         try:
             f = extract_tone_features(seg_audio, sr)
         except ValueError:
-            continue  # silent section; nothing to say about its tone
+            return None  # silent section; nothing to say about its tone
         est = estimate_tone(f, predict_params(f))
-        segments.append(ToneSegment(start=t0, end=t1, features=f, estimate=est,
-                                    label=est.chain[0].effect))
-    return _merge_same_label(segments)
+        return ToneSegment(start=t0, end=t1, features=f, estimate=est,
+                           label=est.chain[0].effect)
 
+    segments = [s for t0, t1 in zip(edges[:-1], edges[1:])
+                if (s := analyze_span(t0, t1)) is not None]
 
-def _merge_same_label(segments: list[ToneSegment]) -> list[ToneSegment]:
-    """A boundary that produced the same drive category on both sides was noise
-    (often just a level change); keep the earlier section's analysis."""
-    merged: list[ToneSegment] = []
-    for s in segments:
-        if merged and merged[-1].label == s.label:
-            prev = merged[-1]
-            merged[-1] = ToneSegment(prev.start, s.end, prev.features,
-                                     prev.estimate, prev.label)
-        else:
-            merged.append(s)
-    return merged
+    # A boundary with the same drive category on both sides was noise (often
+    # just a level change). Merge — and RE-ANALYZE the merged span, so its
+    # features describe the whole span rather than only its first half.
+    changed = True
+    while changed:
+        changed = False
+        merged: list[ToneSegment] = []
+        for s in segments:
+            if merged and merged[-1].label == s.label:
+                combined = analyze_span(merged[-1].start, s.end)
+                if combined is not None:
+                    merged[-1] = combined
+                changed = True
+            else:
+                merged.append(s)
+        segments = merged
+    return segments

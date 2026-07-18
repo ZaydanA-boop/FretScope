@@ -10,7 +10,8 @@ import traceback
 from pathlib import Path
 
 from . import ANALYSIS_SR
-from .audio_io import download_youtube, is_youtube_url, load_audio, save_wav, to_wav
+from .audio_io import (download_youtube, is_youtube_url, load_audio, save_wav,
+                       to_wav, trim_wav, wav_duration)
 from .report import build_report
 from .separation import separate_guitar
 from .tone.features import extract_tone_features
@@ -47,7 +48,15 @@ def analyze(source: str, work_dir: Path | str, progress=None,
     try:
         if is_youtube_url(source):
             note_stage("download", "running", "fetching audio from YouTube")
-            audio_path, yt_meta = download_youtube(source, work_dir)
+
+            def dl_hook(d):
+                if d.get("status") == "downloading":
+                    pct = d.get("_percent_str", "").strip()
+                    if pct:
+                        note_stage("download", "running", f"downloading {pct}")
+
+            audio_path, yt_meta = download_youtube(source, work_dir,
+                                                   progress_hook=dl_hook)
             meta.update(yt_meta)
             note_stage("download", "done", str(audio_path.name))
         else:
@@ -56,7 +65,15 @@ def analyze(source: str, work_dir: Path | str, progress=None,
             note_stage("download", "done", "local file")
         note_stage("decode", "running", "decoding to mono WAV")
         wav_path = to_wav(audio_path, work_dir / "input.wav", sr=ANALYSIS_SR)
-        note_stage("decode", "done")
+        # Trim BEFORE separation: Demucs on CPU is the expensive stage, so it
+        # must never chew through audio the analysis will discard anyway.
+        if wav_duration(wav_path) > MAX_ANALYSIS_SECONDS:
+            wav_path = trim_wav(wav_path, work_dir / "input_trimmed.wav",
+                                MAX_ANALYSIS_SECONDS)
+            note_stage("decode", "done",
+                       f"analysis limited to first {MAX_ANALYSIS_SECONDS}s")
+        else:
+            note_stage("decode", "done")
     except Exception as e:
         note_stage("decode", "failed", f"{e}")
         return build_report(meta=meta, stages=stages, error=str(e))
@@ -87,9 +104,6 @@ def analyze(source: str, work_dir: Path | str, progress=None,
         note_stage("separation", "failed", str(e))
 
     y, sr = sep.audio, sep.sr
-    if len(y) > MAX_ANALYSIS_SECONDS * sr:
-        y = y[: MAX_ANALYSIS_SECONDS * sr]
-        stages["separation"]["detail"] += f" (analysis limited to first {MAX_ANALYSIS_SECONDS}s)"
     if sep.stem_path is None:
         sep.stem_path = save_wav(work_dir / "guitar_stem.wav", y, sr)
 
