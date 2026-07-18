@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -85,6 +85,52 @@ def get_stem(job_id: str) -> FileResponse:
     if path is None:
         raise HTTPException(404, "stem not available")
     return FileResponse(path, media_type="audio/wav", filename="guitar_stem.wav")
+
+
+@app.post("/api/jobs/{job_id}/match")
+async def match_tone(job_id: str, audio: UploadFile = File(...),
+                     segment: int = Form(-1)) -> dict:
+    """Compare an uploaded/recorded attempt against the song's target tone.
+
+    `segment` picks a tone-timeline section (-1 = whole song).
+    """
+    report = manager.report(job_id)
+    if report is None:
+        raise HTTPException(404, "report not ready")
+    tone = report.get("tone", {})
+    timeline = tone.get("timeline", [])
+    if 0 <= segment < len(timeline):
+        target_dict = timeline[segment]["features"]
+        target_name = f"section {segment + 1}"
+    elif tone.get("features"):
+        target_dict = tone["features"]
+        target_name = "whole song"
+    else:
+        raise HTTPException(409, "this job has no tone analysis to match against")
+
+    from ..audio_io import load_audio
+    from ..tone.features import ToneFeatures, extract_tone_features
+    from ..tone.match import CAVEAT, compare_tones
+
+    job_dir = manager.root / job_id
+    suffix = Path(audio.filename or "attempt.webm").suffix or ".webm"
+    attempt_path = job_dir / f"attempt{suffix}"
+    attempt_path.write_bytes(await audio.read())
+    try:
+        y, sr = load_audio(attempt_path)  # ffmpeg decodes webm/ogg/wav alike
+        attempt = extract_tone_features(y, sr)
+    except Exception as e:
+        raise HTTPException(422, f"could not analyze the recording: {e}") from e
+
+    target = ToneFeatures(**target_dict)
+    advice = compare_tones(target, attempt)
+    return {
+        "target": target_name,
+        "advice": [a.to_dict() for a in advice],
+        "caveat": CAVEAT,
+        "confidence": "estimated",
+        "attempt_features": attempt.to_dict(),
+    }
 
 
 @app.delete("/api/jobs/{job_id}")

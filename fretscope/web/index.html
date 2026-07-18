@@ -91,8 +91,40 @@
           <span class="conf-badge conf-estimated">estimated</span>
         </div>
         <p class="panel-note" id="tone-summary"></p>
+        <div class="timeline-wrap" id="timeline-wrap" hidden>
+          <div class="timeline-label">Tone over the song (click a section)</div>
+          <div class="timeline" id="timeline"></div>
+        </div>
+        <div class="scope-note" id="scope-note"></div>
         <div class="pedalboard" id="pedalboard"></div>
         <div class="amp" id="amp-eq"></div>
+        <div class="modelstrip" id="modelstrip" hidden>
+          <span class="modelstrip-label">Model-predicted settings</span>
+          <span id="modelstrip-values"></span>
+          <span class="modelstrip-note">trained on synthesized effect chains, not
+            real amps; error margins are the model's own test error</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Match my tone</h2>
+          <span class="conf-badge conf-estimated">estimated</span>
+        </div>
+        <p class="panel-note">Record yourself playing through your rig (or upload a
+          clip) and get directional adjustments toward the
+          <span id="match-scope">whole song</span> tone.</p>
+        <div class="match-controls">
+          <button type="button" id="record-btn">Record</button>
+          <span class="rec-timer" id="rec-timer" hidden>0:00</span>
+          <label class="upload-label">
+            or upload a clip
+            <input type="file" id="match-file" accept="audio/*" hidden>
+          </label>
+        </div>
+        <p class="input-error" id="match-error" hidden></p>
+        <ul class="advice" id="advice-list"></ul>
+        <p class="panel-note match-caveat" id="match-caveat" hidden></p>
       </section>
 
       <section class="panel">

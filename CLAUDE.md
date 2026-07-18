@@ -26,6 +26,32 @@ The user feeds in YouTube links and views results in a custom web dashboard.
   path through the dashboard API.
 - GitHub remote: not yet created (gh CLI needs interactive auth). Commands to run
   are at the bottom of this file.
+- 2026-07-18 second pass (project rethink with user): added the three-way tone
+  upgrade — tone timeline, learned parameter model, closed-loop tone matching.
+  See "Tone system v2" below.
+
+## Tone system v2 (timeline + learned model + matching)
+
+One windowed feature engine, three consumers:
+
+| Piece | Module | What it does |
+|---|---|---|
+| Tone timeline | `tone/timeline.py` | cheap windowed features → change-point detection → per-section full analysis; sections merged when the drive category doesn't change |
+| Learned mapper | `tone/learned.py`, `tone/train.py` | random forest trained on ~700 synthesized clips through pedalboard chains with KNOWN settings; predicts drive dB, reverb wet/room, delay time/mix, each shipped with its held-out MAE. Model committed at `tone/models/tone_model.joblib` (3.2 MB); regenerate with `python -m fretscope.tone.train` (needs `pedalboard`, dev extra) |
+| Tone match | `tone/match.py`, `POST /api/jobs/{id}/match` | user records/uploads their attempt; feature deltas vs the song (or a timeline section) become directional advice ("add drive slightly", "shorten reverb") |
+
+Key facts:
+- Model MAE (held-out): drive ±2.0 dB (good), reverb wet ±0.13, room ±0.24 (weak),
+  delay ±0.17 s, delay mix ±0.10. Displayed with every prediction.
+- Training domain is synthesized Karplus-Strong guitar + pedalboard effects, NOT
+  real amps — documented in learned.py docstring and in the UI strip.
+- Everything degrades gracefully without the model file (predict_params → None).
+- Reverb/sustain ambiguity: when the decay estimate maxes out (6 s) on a heavily
+  driven signal, the chain reports "reverb (uncertain)" instead of claiming a hall
+  — distortion sustain and big reverb are indistinguishable there.
+- Dashboard: clickable timeline bar scopes the pedalboard/amp/model strip AND the
+  match target; mic recording uses MediaRecorder (works on localhost; echo
+  cancellation disabled for fidelity).
 
 ## Environment (this machine)
 

@@ -53,5 +53,18 @@ def test_job_lifecycle(client, tmp_path, lead_line):
     assert stem.status_code == 200
     assert stem.headers["content-type"].startswith("audio/")
 
+    # closed-loop tone matching: upload an "attempt" against the finished job
+    import io
+    wav_bytes = (tmp_path / "song.wav").read_bytes()
+    match = client.post(f"/api/jobs/{job['id']}/match",
+                        files={"audio": ("attempt.wav", io.BytesIO(wav_bytes),
+                                         "audio/wav")},
+                        data={"segment": -1})
+    assert match.status_code == 200, match.text
+    payload = match.json()
+    assert payload["confidence"] == "estimated"
+    aspects = {a["aspect"] for a in payload["advice"]}
+    assert {"drive", "brightness", "reverb"} <= aspects
+
     assert client.delete(f"/api/jobs/{job['id']}").json()["deleted"] == job["id"]
     assert client.get(f"/api/jobs/{job['id']}").status_code == 404

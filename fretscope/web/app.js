@@ -8,6 +8,11 @@ const state = {
   jobs: [],
   selected: null,
   pollTimer: null,
+  report: null,        // report of the currently displayed job
+  reportJobId: null,
+  segment: -1,         // -1 = whole song, else tone-timeline section index
+  recorder: null,
+  recTimer: null,
 };
 
 /* ---------- api ---------- */
@@ -189,34 +194,12 @@ function renderReport(job, report) {
     note.textContent = "";
   }
 
-  // tone
-  const est = (report.tone || {}).estimate;
-  $("tone-summary").textContent = est ? est.summary : "Tone analysis unavailable.";
-  const board = $("pedalboard");
-  board.innerHTML = "";
-  if (est) {
-    for (const fx of est.chain) {
-      const div = document.createElement("div");
-      div.className = "pedal";
-      const knobs = Object.entries(fx.settings).map(([k, v]) =>
-        `<div class="knob"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("");
-      div.innerHTML = `
-        <h3>${esc(fx.effect)}</h3>
-        <div class="verdict">${esc(fx.verdict)}</div>
-        <div class="strength"><i style="width:${Math.round(fx.strength * 100)}%"></i></div>
-        <div class="knobs">${knobs}</div>
-        <div class="evidence">${esc(fx.evidence)}</div>`;
-      board.appendChild(div);
-    }
-  }
-  const amp = $("amp-eq");
-  amp.innerHTML = "";
-  if (est && est.amp_eq && Object.keys(est.amp_eq).length) {
-    amp.innerHTML = '<span class="amp-label">Amp EQ starting point</span>' +
-      Object.entries(est.amp_eq).map(([k, v]) =>
-        `<div class="ampknob"><div class="val">${esc(v)}</div>
-         <div class="name">${esc(k)}</div></div>`).join("");
-  }
+  // tone (scoped: whole song or a timeline section)
+  if (state.reportJobId !== job.id) state.segment = -1;
+  state.report = report;
+  state.reportJobId = job.id;
+  renderTimeline(report);
+  renderToneScope();
 
   // measurements
   const f = (report.tone || {}).features || {};
@@ -250,6 +233,225 @@ function renderReport(job, report) {
 
   show("report-view");
 }
+
+/* ---------- tone scope (whole song vs timeline section) ---------- */
+
+const SEG_COLORS = {
+  "clean": "#e6cf9c", "edge-of-breakup": "#e8b25c", "overdrive": "#e8a13c",
+  "distortion": "#d47f27", "fuzz/high-gain": "#bf5c1d",
+};
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+}
+
+function renderTimeline(report) {
+  const timeline = (report.tone || {}).timeline || [];
+  const wrap = $("timeline-wrap");
+  wrap.hidden = timeline.length < 2;
+  const bar = $("timeline");
+  bar.innerHTML = "";
+  if (timeline.length < 2) return;
+  const total = timeline[timeline.length - 1].end || 1;
+  timeline.forEach((seg, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tseg" + (state.segment === i ? " selected" : "");
+    btn.style.flexGrow = String(Math.max(seg.end - seg.start, 1));
+    btn.style.background = SEG_COLORS[seg.label] || "#e8a13c";
+    btn.title = `${fmtTime(seg.start)} to ${fmtTime(seg.end)}: ${seg.label}`;
+    btn.textContent = seg.label;
+    btn.addEventListener("click", () => {
+      state.segment = state.segment === i ? -1 : i;
+      renderTimeline(report);
+      renderToneScope();
+    });
+    bar.appendChild(btn);
+  });
+}
+
+function currentScope() {
+  const tone = (state.report && state.report.tone) || {};
+  const timeline = tone.timeline || [];
+  if (state.segment >= 0 && state.segment < timeline.length) {
+    const seg = timeline[state.segment];
+    return {
+      est: seg.estimate,
+      model: seg.model_params || null,
+      label: `section ${state.segment + 1} (${fmtTime(seg.start)} to ` +
+             `${fmtTime(seg.end)}, ${seg.label})`,
+    };
+  }
+  return {
+    est: tone.estimate || null,
+    model: (tone.model_estimate || {}).params || null,
+    label: "whole song",
+  };
+}
+
+function renderToneScope() {
+  const report = state.report;
+  if (!report) return;
+  const { est, model, label } = currentScope();
+
+  const scopeNote = $("scope-note");
+  if (state.segment >= 0) {
+    scopeNote.innerHTML = `Showing ${esc(label)}. `;
+    const back = document.createElement("button");
+    back.type = "button";
+    back.textContent = "Show whole song";
+    back.addEventListener("click", () => {
+      state.segment = -1;
+      renderTimeline(report);
+      renderToneScope();
+    });
+    scopeNote.appendChild(back);
+  } else {
+    scopeNote.textContent = "";
+  }
+  $("match-scope").textContent = label;
+  $("tone-summary").textContent = est
+    ? est.summary : "Tone analysis unavailable.";
+
+  const board = $("pedalboard");
+  board.innerHTML = "";
+  if (est) {
+    for (const fx of est.chain) {
+      const div = document.createElement("div");
+      div.className = "pedal";
+      const knobs = Object.entries(fx.settings).map(([k, v]) =>
+        `<div class="knob"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("");
+      div.innerHTML = `
+        <h3>${esc(fx.effect)}</h3>
+        <div class="verdict">${esc(fx.verdict)}</div>
+        <div class="strength"><i style="width:${Math.round(fx.strength * 100)}%"></i></div>
+        <div class="knobs">${knobs}</div>
+        <div class="evidence">${esc(fx.evidence)}</div>`;
+      board.appendChild(div);
+    }
+  }
+
+  const amp = $("amp-eq");
+  amp.innerHTML = "";
+  if (est && est.amp_eq && Object.keys(est.amp_eq).length) {
+    amp.innerHTML = '<span class="amp-label">Amp EQ starting point</span>' +
+      Object.entries(est.amp_eq).map(([k, v]) =>
+        `<div class="ampknob"><div class="val">${esc(v)}</div>
+         <div class="name">${esc(k)}</div></div>`).join("");
+  }
+
+  renderModelStrip(model);
+}
+
+function renderModelStrip(params) {
+  const strip = $("modelstrip");
+  if (!params) { strip.hidden = true; return; }
+  const fmt = (p, f) => p && p.value != null
+    ? f(p.value) + (p.mae != null ? ` ±${f(p.mae, true)}` : "") : null;
+  const pieces = [
+    ["drive", fmt(params.drive_db, (v) => `${v.toFixed(1)} dB`)],
+    ["reverb wet", fmt(params.reverb_wet, (v) => `${Math.round(v * 100)}%`)],
+    ["room size", fmt(params.reverb_room, (v) => v.toFixed(2))],
+    ["delay", fmt(params.delay_seconds, (v) => `${Math.round(v * 1000)} ms`)],
+    ["delay mix", fmt(params.delay_mix, (v) => `${Math.round(v * 100)}%`)],
+  ].filter(([, v]) => v);
+  $("modelstrip-values").innerHTML = pieces.map(([k, v]) =>
+    `${esc(k)} <span class="mval">${esc(v)}</span>`).join(" &nbsp; ");
+  strip.hidden = pieces.length === 0;
+}
+
+/* ---------- tone match (record / upload an attempt) ---------- */
+
+async function submitMatch(blob, filename) {
+  const errEl = $("match-error");
+  errEl.hidden = true;
+  $("advice-list").innerHTML =
+    '<li class="close"><span class="a-aspect">...</span>' +
+    '<span class="a-text">analyzing your recording</span></li>';
+  try {
+    const form = new FormData();
+    form.append("audio", blob, filename);
+    form.append("segment", String(state.segment));
+    const res = await fetch(`/api/jobs/${state.reportJobId}/match`,
+                            { method: "POST", body: form });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try { detail = (await res.json()).detail || detail; } catch (e) { /* keep */ }
+      throw new Error(detail);
+    }
+    const payload = await res.json();
+    const ul = $("advice-list");
+    ul.innerHTML = "";
+    for (const a of payload.advice) {
+      const li = document.createElement("li");
+      li.className = a.status;
+      li.innerHTML = `<span class="a-aspect">${esc(a.aspect)}</span>
+        <span class="a-text">${esc(a.text)}</span>`;
+      ul.appendChild(li);
+    }
+    const cav = $("match-caveat");
+    cav.textContent = payload.caveat;
+    cav.hidden = false;
+  } catch (e) {
+    $("advice-list").innerHTML = "";
+    errEl.textContent = e.message;
+    errEl.hidden = false;
+  }
+}
+
+$("match-file").addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if (file) submitMatch(file, file.name);
+  ev.target.value = "";
+});
+document.querySelector(".upload-label").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  $("match-file").click();
+});
+
+$("record-btn").addEventListener("click", async () => {
+  const btn = $("record-btn");
+  if (state.recorder && state.recorder.state === "recording") {
+    state.recorder.stop();
+    return;
+  }
+  const errEl = $("match-error");
+  errEl.hidden = true;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false,
+               autoGainControl: false },
+    });
+  } catch (e) {
+    errEl.textContent = "Microphone access denied: " + e.message;
+    errEl.hidden = false;
+    return;
+  }
+  const chunks = [];
+  const rec = new MediaRecorder(stream);
+  state.recorder = rec;
+  rec.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
+  rec.onstop = () => {
+    clearInterval(state.recTimer);
+    $("rec-timer").hidden = true;
+    btn.textContent = "Record";
+    btn.classList.remove("recording");
+    stream.getTracks().forEach((t) => t.stop());
+    const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+    if (blob.size > 2000) submitMatch(blob, "attempt.webm");
+  };
+  rec.start();
+  btn.textContent = "Stop";
+  btn.classList.add("recording");
+  const started = Date.now();
+  const timerEl = $("rec-timer");
+  timerEl.hidden = false;
+  state.recTimer = setInterval(() => {
+    timerEl.textContent = fmtTime((Date.now() - started) / 1000);
+  }, 250);
+});
 
 function renderError(job) {
   $("error-title").textContent = job.title || job.source;

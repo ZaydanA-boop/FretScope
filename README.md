@@ -10,7 +10,13 @@ close.
    with timings.
 2. **Tone breakdown** — measured audio characteristics (gain/distortion, reverb, EQ shape,
    compression) mapped to effect *categories* and rough parameter ranges you can dial in on
-   your own gear.
+   your own gear, plus concrete settings predicted by a model trained on synthesized effect
+   chains (shipped with its own error bars).
+3. **Tone timeline** — where the tone *changes* within the song (clean verse, driven
+   chorus...), with a separate breakdown per section.
+4. **Tone matching** — record yourself playing through your rig in the dashboard and get
+   directional adjustments toward the song's tone ("add drive slightly, shorten the
+   reverb tail").
 
 ## Honest limitations (read this)
 
