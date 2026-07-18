@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from . import ANALYSIS_SR
-from .audio_io import load_audio, save_wav
+from .audio_io import ensure_ffmpeg_on_path, load_audio, save_wav
 
 DEMUCS_MODEL = "htdemucs"
 
@@ -78,6 +78,7 @@ def separate_guitar(src_wav: Path | str, work_dir: Path | str,
     if progress:
         progress("loading Demucs model (first run downloads ~80 MB of weights)")
 
+    ensure_ffmpeg_on_path()  # demucs AudioFile shells out to ffmpeg/ffprobe by name
     import torch
     from demucs.apply import apply_model
     from demucs.audio import AudioFile

@@ -48,6 +48,21 @@ def find_ffmpeg() -> str | None:
     return None
 
 
+def ensure_ffmpeg_on_path() -> None:
+    """Prepend ffmpeg's folder to this process's PATH.
+
+    Libraries that shell out to `ffmpeg`/`ffprobe` by bare name (demucs, yt-dlp
+    post-processors) need them on PATH; a fresh winget install only updates the
+    registry PATH, not already-running processes.
+    """
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        return
+    bin_dir = str(Path(ffmpeg).parent)
+    if bin_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+
+
 def require_ffmpeg() -> str:
     ffmpeg = find_ffmpeg()
     if not ffmpeg:
