@@ -20,6 +20,12 @@ The user feeds in YouTube links and views results in a custom web dashboard.
 - Phase 5 (recreation mapping) — done
 - Phase 6 (report output) — done
 - Dashboard (FastAPI + web UI) — done
+- End-to-end verified 2026-07-18: real Demucs separation on a synthetic
+  guitar+bass+drums mix returned a stem that transcribed to exactly the guitar
+  melody; a live YouTube link ran the full download→separate→transcribe→tone→report
+  path through the dashboard API.
+- GitHub remote: not yet created (gh CLI needs interactive auth). Commands to run
+  are at the bottom of this file.
 
 ## Environment (this machine)
 
@@ -94,3 +100,12 @@ The user feeds in YouTube links and views results in a custom web dashboard.
 - Tests use synthesized audio (numpy sine/chord fixtures in `tests/conftest.py`) — no
   copyrighted audio in the repo, no network in tests.
 - All user-facing numbers from tone analysis carry a range, not a point value.
+
+## Pushing to GitHub (one-time setup)
+
+```powershell
+gh auth login          # pick GitHub.com → HTTPS → login with browser
+gh repo create fretscope --private --source . --push
+```
+
+(`gh` was installed via winget; open a fresh terminal so it's on PATH.)
