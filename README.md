@@ -14,9 +14,10 @@ close.
 
 ## Honest limitations (read this)
 
-- **Guitar isolation** uses Demucs, which separates vocals/drums/bass cleanly but lumps all
-  guitars (and keys, strings, etc.) into one "other" stem. If a song has lead and rhythm
-  guitar at once, they will **not** be separated from each other. The report flags this.
+- **Guitar isolation** uses Demucs `htdemucs_6s`, which has a dedicated guitar stem. It is
+  the weak stem of the model family: expect some leakage of keys/synths in and guitar out.
+  If a song has lead and rhythm guitar at once, they will **not** be separated from each
+  other — no current model can do that. The report flags this.
 - **Tab output is one playable interpretation, not "the" tab.** The same pitch exists at
   several fretboard positions; we pick positions with a playability heuristic (documented in
   `CLAUDE.md`).

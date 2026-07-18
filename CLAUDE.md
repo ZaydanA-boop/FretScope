@@ -63,8 +63,14 @@ The user feeds in YouTube links and views results in a custom web dashboard.
 ## Key decisions and why
 
 - **Python 3.12 venv, not system 3.14** — numba/librosa/torch wheel availability.
-- **Demucs, "other" stem** — best available open model; it does NOT separate lead from
-  rhythm guitar. This limitation is surfaced in every report rather than hidden.
+- **Demucs htdemucs_6s, dedicated "guitar" stem** (upgraded 2026-07-18 after the user
+  found 4-stem "other" isolation poor). The 6-source model extracts guitar
+  specifically; if the guitar stem holds <10% of guitar+other energy the two are
+  blended (model misfiled the guitar) and the report says so. Switchable via
+  FRETSCOPE_SEPARATION_MODEL. No model separates lead from rhythm guitar — surfaced
+  in every report. Next rungs if still not good enough: Mel-Band Roformer guitar
+  checkpoints via the audio-separator package (better quality, ~10-20 min/song on
+  this CPU), or commercial APIs (Moises/LALAL/AudioShake).
 - **Separation is optional** (`[separation]` extra, lazy import) so the core pipeline,
   tests, and dashboard work on machines without torch. Without it, analysis runs on the
   full mix and the report says so (confidence downgraded).
