@@ -97,10 +97,22 @@ def _compression(f: ToneFeatures, drive_strength: float) -> EffectEstimate | Non
         round(min(attributable, 1.0), 2))
 
 
-def _reverb(f: ToneFeatures) -> EffectEstimate | None:
+def _reverb(f: ToneFeatures, drive_strength: float = 0.0) -> EffectEstimate | None:
     t60 = f.decay_t60_s
     if t60 < 0.5:
         return None
+    if t60 >= 5.9 and drive_strength > 0.5:
+        # The decay estimator maxed out on a heavily driven signal: sustained
+        # distortion never decays, which looks identical to endless reverb.
+        return EffectEstimate(
+            "reverb (uncertain)",
+            "nothing ever fades out — could be big reverb, or just heavy "
+            "distortion sustain; can't tell them apart here",
+            {"decay/mix": "start dry; add reverb only if the record clearly "
+             "has space around the notes"},
+            f"decay estimate hit its cap ({t60:.1f} s) with drive strength "
+            f"{drive_strength:.2f}",
+            0.3)
     if t60 < 1.2:
         kind, decay = "room reverb", "small room, decay 0.5–1 s, mix 15–25%"
     elif t60 < 2.5:
@@ -184,17 +196,23 @@ def estimate_tone(f: ToneFeatures) -> ToneEstimate:
     drive = _drive(f)
     chain: list[EffectEstimate] = [drive]
     for est in (_compression(f, drive.strength), _modulation(f), _delay(f),
-                _reverb(f)):
+                _reverb(f, drive.strength)):
         if est is not None:
             chain.append(est)
 
     eq, character = _amp_eq(f)
 
     ambience = next((e for e in chain if e.effect == "reverb"), None)
+    uncertain_ambience = any(e.effect == "reverb (uncertain)" for e in chain)
+    if ambience:
+        ambience_clause = f", {ambience.verdict.split('—')[-1].strip()}"
+    elif uncertain_ambience:
+        ambience_clause = ""  # sustain vs reverb genuinely ambiguous; claim nothing
+    else:
+        ambience_clause = ", fairly dry"
     summary = (
         f"ESTIMATE (not a gear identification): {drive.effect} tone with a "
-        f"{character} EQ character"
-        + (f", {ambience.verdict.split('—')[-1].strip()}" if ambience else ", fairly dry")
+        f"{character} EQ character" + ambience_clause
         + ". Start with the suggested settings below and tune by ear — the same "
           "sound can come from many different rigs."
     )

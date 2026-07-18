@@ -142,7 +142,26 @@ def analyze(source: str, work_dir: Path | str, progress=None,
         estimate = estimate_tone(features)
         tone = {"features": features.to_dict(), "estimate": estimate.to_dict(),
                 "confidence": "estimated"}
-        note_stage("tone", "done", estimate.chain[0].effect)
+        from .tone.learned import predict_params
+        model_params = predict_params(features)
+        if model_params:
+            tone["model_estimate"] = {"params": model_params,
+                                      "confidence": "estimated"}
+        note_stage("tone", "running", "mapping tone changes across the song")
+        from .tone.timeline import tone_timeline
+        segments = tone_timeline(y, sr)
+        timeline = []
+        for s in segments:
+            d = s.to_dict()
+            seg_params = predict_params(s.features)
+            if seg_params:
+                d["model_params"] = seg_params
+            timeline.append(d)
+        tone["timeline"] = timeline
+        detail = estimate.chain[0].effect
+        if len(segments) > 1:
+            detail += f", {len(segments)} tone sections"
+        note_stage("tone", "done", detail)
     except Exception as e:
         traceback.print_exc()
         note_stage("tone", "failed", str(e))
