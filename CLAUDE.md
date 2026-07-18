@@ -41,17 +41,30 @@ One windowed feature engine, three consumers:
 | Tone match | `tone/match.py`, `POST /api/jobs/{id}/match` | user records/uploads their attempt; feature deltas vs the song (or a timeline section) become directional advice ("add drive slightly", "shorten reverb") |
 
 Key facts:
-- Model MAE (held-out): drive ±2.0 dB (good), reverb wet ±0.13, room ±0.24 (weak),
-  delay ±0.17 s, delay mix ±0.10. Displayed with every prediction.
+- Model MAE (held-out, current model): drive ±2.6 dB, reverb wet ±0.13, room ±0.25
+  (weak), delay ±0.16 s, delay mix ±0.11, chorus rate ±0.5 Hz, chorus mix ±0.12.
+  Displayed with every prediction.
+- **Chorus is model-only.** Three hand-crafted detectors (spectral-centroid wobble,
+  per-bin envelope modulation, cepstral delay tracking) all failed to separate
+  chorus from note-rate structure on synthetic tests. The random forest DOES
+  separate it (validated experiment: predicted mix 0.41 when present vs 0.09 when
+  absent) using the two `subband_mod_*` features jointly with the rest. Never
+  add a rule-based chorus card; the chain's chorus entry exists only when the
+  model is installed and predicts mix ≥ 0.15.
 - Training domain is synthesized Karplus-Strong guitar + pedalboard effects, NOT
   real amps — documented in learned.py docstring and in the UI strip.
 - Everything degrades gracefully without the model file (predict_params → None).
 - Reverb/sustain ambiguity: when the decay estimate maxes out (6 s) on a heavily
   driven signal, the chain reports "reverb (uncertain)" instead of claiming a hall
   — distortion sustain and big reverb are indistinguishable there.
-- Dashboard: clickable timeline bar scopes the pedalboard/amp/model strip AND the
-  match target; mic recording uses MediaRecorder (works on localhost; echo
-  cancellation disabled for fidelity).
+- Dashboard (v2, 2026-07-18, user-directed redesign): tone match promoted to the
+  top with bipolar delta bars per aspect; pedal cards and amp EQ render SVG rotary
+  knobs (needle animates on scope change; static under prefers-reduced-motion);
+  timeline strip always renders with a time ruler (with a "re-analyze" note for
+  pre-timeline reports); chord charts collapsed behind a details toggle (user
+  found them bulky) with a "Mostly Am, C, F" one-liner instead; clickable timeline
+  scopes the rig knobs AND the match target. Reports written before the
+  subband-feature change still work (features_from_dict fills defaults).
 
 ## Environment (this machine)
 

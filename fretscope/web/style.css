@@ -33,6 +33,13 @@ body {
   min-height: 100dvh;
 }
 
+/* faint tube-glow arches, like a lit amp in a dark room */
+.stage {
+  background:
+    radial-gradient(ellipse 90% 40% at 50% -12%, rgb(232 161 60 / 0.05), transparent 65%),
+    radial-gradient(ellipse 70% 30% at 80% 108%, rgb(232 161 60 / 0.03), transparent 60%);
+}
+
 /* ---------- top bar ---------- */
 
 .topbar {
@@ -405,6 +412,57 @@ button:disabled { background: var(--line); color: var(--text-faint); cursor: def
 }
 .scope-note button:hover { text-decoration: underline; }
 
+.timeline-ruler {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+/* ---------- knobs ---------- */
+
+.knob-unit { text-align: center; width: 74px; }
+.knob-unit svg { width: 58px; height: 58px; overflow: visible; }
+.knob-face {
+  fill: var(--bg);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+.knob-ticks line { stroke: var(--text-faint); stroke-width: 1.5; opacity: 0.55; }
+.knob-needle line {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.knob-needle {
+  transform-origin: 40px 40px;
+  transition: transform 0.7s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .knob-needle { transition: none; }
+}
+.knob-cap { fill: var(--accent); }
+.knob-val { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-top: 2px; }
+.knob-name { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.pedal .dials {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 8px 0 10px;
+  padding: 8px 0 6px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+}
+.pedal.uncertain { border-top-color: var(--text-faint); }
+.pedal.uncertain .knob-needle line, .pedal.uncertain .knob-cap { stroke: var(--text-faint); fill: var(--text-faint); }
+.pedal.uncertain .knob-val { color: var(--text-faint); }
+
+.amp-dials { display: flex; gap: 10px; }
+
 /* ---------- model strip ---------- */
 
 .modelstrip {
@@ -435,16 +493,51 @@ button:disabled { background: var(--line); color: var(--text-faint); cursor: def
 }
 .upload-label:hover { text-decoration: underline; }
 
+.match-panel {
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 1px rgb(232 161 60 / 0.08), 0 8px 32px rgb(0 0 0 / 0.25);
+}
+
 .advice { list-style: none; margin-top: 10px; }
 .advice li {
   display: grid;
-  grid-template-columns: 92px 1fr;
+  grid-template-columns: 92px 120px 1fr;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
   padding: 8px 2px;
   border-bottom: 1px solid var(--line-soft);
   font-size: 13.5px;
 }
+.a-bar {
+  position: relative;
+  height: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.a-bar::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.a-bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.a-bar i.pos { left: 50%; background: var(--accent); }
+.a-bar i.neg { right: 50%; background: var(--accent-deep); }
+.advice li.close .a-bar i { background: var(--ok); opacity: 0.6; }
+
+.chords-details { margin-top: 4px; }
+.chords-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.chords-details summary:hover { text-decoration: underline; }
+.chords-details pre { margin-top: 10px; }
 .advice .a-aspect { font-weight: 650; font-size: 12.5px; }
 .advice li.close .a-aspect { color: var(--ok); }
 .advice li.adjust .a-aspect { color: var(--accent); }

@@ -76,44 +76,28 @@
 
       <div class="banner" id="separation-banner"></div>
 
-      <section class="panel" id="transcription-panel">
-        <div class="panel-head">
-          <h2 id="transcription-heading">Tab</h2>
-          <span class="conf-badge conf-heuristic" id="transcription-conf">heuristic</span>
-        </div>
-        <p class="panel-note" id="classification-note"></p>
-        <pre class="tabview" id="transcription-body"></pre>
-      </section>
-
       <section class="panel">
         <div class="panel-head">
-          <h2>Tone breakdown</h2>
+          <h2>Tone</h2>
           <span class="conf-badge conf-estimated">estimated</span>
         </div>
         <p class="panel-note" id="tone-summary"></p>
-        <div class="timeline-wrap" id="timeline-wrap" hidden>
-          <div class="timeline-label">Tone over the song (click a section)</div>
+        <div class="timeline-wrap" id="timeline-wrap">
+          <div class="timeline-label" id="timeline-label">Tone over the song (click a section)</div>
           <div class="timeline" id="timeline"></div>
+          <div class="timeline-ruler" id="timeline-ruler"></div>
         </div>
         <div class="scope-note" id="scope-note"></div>
-        <div class="pedalboard" id="pedalboard"></div>
-        <div class="amp" id="amp-eq"></div>
-        <div class="modelstrip" id="modelstrip" hidden>
-          <span class="modelstrip-label">Model-predicted settings</span>
-          <span id="modelstrip-values"></span>
-          <span class="modelstrip-note">trained on synthesized effect chains, not
-            real amps; error margins are the model's own test error</span>
-        </div>
       </section>
 
-      <section class="panel">
+      <section class="panel match-panel">
         <div class="panel-head">
           <h2>Match my tone</h2>
           <span class="conf-badge conf-estimated">estimated</span>
         </div>
         <p class="panel-note">Record yourself playing through your rig (or upload a
           clip) and get directional adjustments toward the
-          <span id="match-scope">whole song</span> tone.</p>
+          <b id="match-scope">whole song</b> tone.</p>
         <div class="match-controls">
           <button type="button" id="record-btn">Record</button>
           <span class="rec-timer" id="rec-timer" hidden>0:00</span>
@@ -125,6 +109,34 @@
         <p class="input-error" id="match-error" hidden></p>
         <ul class="advice" id="advice-list"></ul>
         <p class="panel-note match-caveat" id="match-caveat" hidden></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>The rig</h2>
+          <span class="conf-badge conf-estimated">estimated</span>
+        </div>
+        <div class="pedalboard" id="pedalboard"></div>
+        <div class="amp" id="amp-eq"></div>
+        <div class="modelstrip" id="modelstrip" hidden>
+          <span class="modelstrip-label">Model-predicted settings</span>
+          <span id="modelstrip-values"></span>
+          <span class="modelstrip-note">trained on synthesized effect chains, not
+            real amps; error margins are the model's own test error</span>
+        </div>
+      </section>
+
+      <section class="panel" id="transcription-panel">
+        <div class="panel-head">
+          <h2 id="transcription-heading">Tab</h2>
+          <span class="conf-badge conf-heuristic" id="transcription-conf">heuristic</span>
+        </div>
+        <p class="panel-note" id="classification-note"></p>
+        <pre class="tabview" id="transcription-body"></pre>
+        <details class="chords-details" id="chords-details" hidden>
+          <summary>Show chord chart</summary>
+          <pre class="tabview" id="chords-body"></pre>
+        </details>
       </section>
 
       <section class="panel">

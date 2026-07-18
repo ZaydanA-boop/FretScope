@@ -175,19 +175,34 @@ function renderReport(job, report) {
         : `Heads up: ${sep.notes[0] || "analysis ran on the full mix."}`)
     : "";
 
-  // transcription
+  // transcription: tab shown in full; chord charts are bulky so they collapse
   const tr = report.transcription || {};
   const heading = $("transcription-heading");
   const body = $("transcription-body");
   const note = $("classification-note");
+  const chordsDetails = $("chords-details");
+  chordsDetails.hidden = true;
+  chordsDetails.open = false;
+  body.hidden = false;
   if (tr.kind === "lead") {
     heading.textContent = "Tab";
     body.textContent = tr.tab || "(empty)";
     note.textContent = "Read as a lead line: " + (tr.classification?.rationale || "");
   } else if (tr.kind === "rhythm") {
-    heading.textContent = "Chord chart";
-    body.textContent = tr.chart || "(empty)";
-    note.textContent = "Read as a chordal part: " + (tr.classification?.rationale || "");
+    heading.textContent = "Rhythm part";
+    body.hidden = true;
+    note.textContent = "Read as a chordal part: " +
+      (tr.classification?.rationale || "");
+    const chords = (tr.chords || []).filter((c) => c.chord !== "N");
+    if (chords.length) {
+      const dur = {};
+      for (const c of chords) dur[c.chord] = (dur[c.chord] || 0) + (c.end - c.start);
+      const top = Object.entries(dur).sort((a, b) => b[1] - a[1]).slice(0, 4)
+        .map(([name]) => name);
+      note.textContent += ` Mostly ${top.join(", ")}.`;
+    }
+    $("chords-body").textContent = tr.chart || "(empty)";
+    chordsDetails.hidden = false;
   } else {
     heading.textContent = "Transcription";
     body.textContent = "Unavailable: " + (tr.error || "unknown failure");
@@ -248,11 +263,19 @@ function fmtTime(s) {
 
 function renderTimeline(report) {
   const timeline = (report.tone || {}).timeline || [];
-  const wrap = $("timeline-wrap");
-  wrap.hidden = timeline.length < 2;
   const bar = $("timeline");
+  const ruler = $("timeline-ruler");
+  const label = $("timeline-label");
   bar.innerHTML = "";
-  if (timeline.length < 2) return;
+  ruler.innerHTML = "";
+  if (!timeline.length) {
+    label.textContent = "No tone timeline in this analysis. Re-analyze the song " +
+      "to map how the tone changes over time.";
+    return;
+  }
+  label.textContent = timeline.length === 1
+    ? "One consistent tone across the analyzed span"
+    : "Tone over the song (click a section to zoom the rig and match target)";
   const total = timeline[timeline.length - 1].end || 1;
   timeline.forEach((seg, i) => {
     const btn = document.createElement("button");
@@ -262,13 +285,20 @@ function renderTimeline(report) {
     btn.style.background = SEG_COLORS[seg.label] || "#e8a13c";
     btn.title = `${fmtTime(seg.start)} to ${fmtTime(seg.end)}: ${seg.label}`;
     btn.textContent = seg.label;
-    btn.addEventListener("click", () => {
-      state.segment = state.segment === i ? -1 : i;
-      renderTimeline(report);
-      renderToneScope();
-    });
+    if (timeline.length > 1) {
+      btn.addEventListener("click", () => {
+        state.segment = state.segment === i ? -1 : i;
+        renderTimeline(report);
+        renderToneScope();
+      });
+    }
     bar.appendChild(btn);
   });
+  for (const frac of [0, 0.25, 0.5, 0.75, 1]) {
+    const tick = document.createElement("span");
+    tick.textContent = fmtTime(total * frac);
+    ruler.appendChild(tick);
+  }
 }
 
 function currentScope() {
@@ -279,6 +309,7 @@ function currentScope() {
     return {
       est: seg.estimate,
       model: seg.model_params || null,
+      feats: seg.features || null,
       label: `section ${state.segment + 1} (${fmtTime(seg.start)} to ` +
              `${fmtTime(seg.end)}, ${seg.label})`,
     };
@@ -286,14 +317,85 @@ function currentScope() {
   return {
     est: tone.estimate || null,
     model: (tone.model_estimate || {}).params || null,
+    feats: tone.features || null,
     label: "whole song",
   };
+}
+
+/* ---------- knobs ---------- */
+
+function knobHTML(label, norm, display, extraClass) {
+  const angle = -135 + 270 * Math.max(0, Math.min(1, norm));
+  let ticks = "";
+  for (let i = 0; i <= 10; i++) {
+    const a = (-135 + 27 * i) * Math.PI / 180;
+    const x1 = 40 + 30 * Math.sin(a), y1 = 40 - 30 * Math.cos(a);
+    const x2 = 40 + 34 * Math.sin(a), y2 = 40 - 34 * Math.cos(a);
+    ticks += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}"
+      x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+  }
+  return `<div class="knob-unit ${extraClass || ""}">
+    <svg viewBox="0 0 80 80" aria-label="${esc(label)}: ${esc(display)}">
+      <g class="knob-ticks">${ticks}</g>
+      <circle class="knob-face" cx="40" cy="40" r="26"/>
+      <g class="knob-needle" style="transform: rotate(${angle.toFixed(1)}deg)">
+        <line x1="40" y1="40" x2="40" y2="18"/>
+      </g>
+      <circle class="knob-cap" cx="40" cy="40" r="4"/>
+    </svg>
+    <div class="knob-val">${esc(display)}</div>
+    <div class="knob-name">${esc(label)}</div>
+  </div>`;
+}
+
+function mv(model, name) {
+  const p = model && model[name];
+  return (p && typeof p === "object" && p.value != null) ? p.value : null;
+}
+
+function knobsForEffect(fx, feats, model) {
+  const f = feats || {};
+  const effect = fx.effect;
+  const knobs = [];
+  if (["clean", "edge-of-breakup", "overdrive", "distortion",
+       "fuzz/high-gain"].includes(effect)) {
+    const db = mv(model, "drive_db");
+    knobs.push(db != null
+      ? { label: "drive", norm: db / 35, display: `${db.toFixed(0)} dB` }
+      : { label: "drive", norm: fx.strength, display: `${Math.round(fx.strength * 100)}%` });
+  } else if (effect === "compressor") {
+    knobs.push({ label: "squash", norm: fx.strength,
+                 display: `${Math.round(fx.strength * 100)}%` });
+  } else if (effect === "chorus") {
+    const rate = mv(model, "chorus_rate_hz"), mix = mv(model, "chorus_mix");
+    if (rate != null) knobs.push({ label: "rate", norm: rate / 4,
+                                   display: `${rate.toFixed(1)} Hz` });
+    if (mix != null) knobs.push({ label: "mix", norm: mix / 0.6,
+                                  display: `${Math.round(mix * 100)}%` });
+  } else if (effect === "modulation") {
+    knobs.push({ label: "rate", norm: (f.modulation_hz || 0) / 12,
+                 display: `${(f.modulation_hz || 0).toFixed(1)} Hz` });
+    knobs.push({ label: "depth", norm: Math.min((f.modulation_depth || 0) * 2, 1),
+                 display: `${Math.round(Math.min((f.modulation_depth || 0) * 2, 1) * 100)}%` });
+  } else if (effect === "delay") {
+    const t = mv(model, "delay_seconds") ?? f.echo_delay_s ?? 0;
+    const mix = mv(model, "delay_mix") ?? Math.min(f.echo_strength || 0, 0.5);
+    knobs.push({ label: "time", norm: t / 0.8, display: `${Math.round(t * 1000)} ms` });
+    knobs.push({ label: "mix", norm: mix / 0.5, display: `${Math.round(mix * 100)}%` });
+  } else if (effect.startsWith("reverb")) {
+    knobs.push({ label: "decay", norm: (f.decay_t60_s || 0) / 6,
+                 display: `${(f.decay_t60_s || 0).toFixed(1)} s` });
+    const wet = mv(model, "reverb_wet");
+    if (wet != null) knobs.push({ label: "wet", norm: wet / 0.6,
+                                  display: `${Math.round(wet * 100)}%` });
+  }
+  return knobs;
 }
 
 function renderToneScope() {
   const report = state.report;
   if (!report) return;
-  const { est, model, label } = currentScope();
+  const { est, model, feats, label } = currentScope();
 
   const scopeNote = $("scope-note");
   if (state.segment >= 0) {
@@ -319,14 +421,16 @@ function renderToneScope() {
   if (est) {
     for (const fx of est.chain) {
       const div = document.createElement("div");
-      div.className = "pedal";
-      const knobs = Object.entries(fx.settings).map(([k, v]) =>
+      div.className = "pedal" + (fx.effect.includes("uncertain") ? " uncertain" : "");
+      const dials = knobsForEffect(fx, feats, model)
+        .map((k) => knobHTML(k.label, k.norm, k.display)).join("");
+      const settings = Object.entries(fx.settings).map(([k, v]) =>
         `<div class="knob"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("");
       div.innerHTML = `
         <h3>${esc(fx.effect)}</h3>
         <div class="verdict">${esc(fx.verdict)}</div>
-        <div class="strength"><i style="width:${Math.round(fx.strength * 100)}%"></i></div>
-        <div class="knobs">${knobs}</div>
+        <div class="dials">${dials}</div>
+        <div class="knobs">${settings}</div>
         <div class="evidence">${esc(fx.evidence)}</div>`;
       board.appendChild(div);
     }
@@ -335,10 +439,15 @@ function renderToneScope() {
   const amp = $("amp-eq");
   amp.innerHTML = "";
   if (est && est.amp_eq && Object.keys(est.amp_eq).length) {
-    amp.innerHTML = '<span class="amp-label">Amp EQ starting point</span>' +
-      Object.entries(est.amp_eq).map(([k, v]) =>
-        `<div class="ampknob"><div class="val">${esc(v)}</div>
-         <div class="name">${esc(k)}</div></div>`).join("");
+    const order = ["bass", "mids", "treble"];
+    const dials = order.filter((k) => est.amp_eq[k]).map((k) => {
+      const v = est.amp_eq[k];
+      const nums = String(v).match(/\d+/g) || ["5"];
+      const mid = nums.map(Number).reduce((a, b) => a + b, 0) / nums.length;
+      return knobHTML(k, mid / 10, String(v).replace(/\s*\(.*\)/, ""));
+    }).join("");
+    amp.innerHTML = `<span class="amp-label">Amp EQ<br>starting point</span>
+      <div class="amp-dials">${dials}</div>`;
   }
 
   renderModelStrip(model);
@@ -355,6 +464,8 @@ function renderModelStrip(params) {
     ["room size", fmt(params.reverb_room, (v) => v.toFixed(2))],
     ["delay", fmt(params.delay_seconds, (v) => `${Math.round(v * 1000)} ms`)],
     ["delay mix", fmt(params.delay_mix, (v) => `${Math.round(v * 100)}%`)],
+    ["chorus rate", fmt(params.chorus_rate_hz, (v) => `${v.toFixed(1)} Hz`)],
+    ["chorus mix", fmt(params.chorus_mix, (v) => `${Math.round(v * 100)}%`)],
   ].filter(([, v]) => v);
   $("modelstrip-values").innerHTML = pieces.map(([k, v]) =>
     `${esc(k)} <span class="mval">${esc(v)}</span>`).join(" &nbsp; ");
@@ -383,10 +494,17 @@ async function submitMatch(blob, filename) {
     const payload = await res.json();
     const ul = $("advice-list");
     ul.innerHTML = "";
+    // per-aspect scale for the bipolar delta bar (full bar = this much delta)
+    const SCALES = { drive: 1, brightness: 6, mids: 0.3, reverb: 3,
+                     delay: 0.5, chorus: 0.5, dynamics: 10 };
     for (const a of payload.advice) {
       const li = document.createElement("li");
       li.className = a.status;
+      const scale = SCALES[a.aspect] || 1;
+      const pct = Math.min(Math.abs(a.delta) / scale, 1) * 50;
+      const side = a.delta >= 0 ? "pos" : "neg";
       li.innerHTML = `<span class="a-aspect">${esc(a.aspect)}</span>
+        <span class="a-bar"><i class="${side}" style="width:${pct.toFixed(0)}%"></i></span>
         <span class="a-text">${esc(a.text)}</span>`;
       ul.appendChild(li);
     }
