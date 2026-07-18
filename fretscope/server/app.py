@@ -109,7 +109,8 @@ async def match_tone(job_id: str, audio: UploadFile = File(...),
         raise HTTPException(409, "this job has no tone analysis to match against")
 
     from ..audio_io import load_audio
-    from ..tone.features import ToneFeatures, extract_tone_features
+    from ..tone.features import extract_tone_features, features_from_dict
+    from ..tone.learned import predict_params
     from ..tone.match import CAVEAT, compare_tones
 
     job_dir = manager.root / job_id
@@ -122,8 +123,10 @@ async def match_tone(job_id: str, audio: UploadFile = File(...),
     except Exception as e:
         raise HTTPException(422, f"could not analyze the recording: {e}") from e
 
-    target = ToneFeatures(**target_dict)
-    advice = compare_tones(target, attempt)
+    target = features_from_dict(target_dict)
+    advice = compare_tones(target, attempt,
+                           target_params=predict_params(target),
+                           attempt_params=predict_params(attempt))
     return {
         "target": target_name,
         "advice": [a.to_dict() for a in advice],

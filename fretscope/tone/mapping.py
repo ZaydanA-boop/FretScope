@@ -192,10 +192,32 @@ def _amp_eq(f: ToneFeatures) -> tuple[dict[str, str], str]:
     return eq, character
 
 
-def estimate_tone(f: ToneFeatures) -> ToneEstimate:
+def _chorus_from_model(model_params: dict | None) -> EffectEstimate | None:
+    """Chorus is detectable only by the learned model (validated: no single
+    feature separates it from playing dynamics), so this card exists only when
+    the model is present and confident."""
+    if not model_params:
+        return None
+    mix = model_params.get("chorus_mix", {})
+    rate = model_params.get("chorus_rate_hz", {})
+    if not isinstance(mix, dict) or (mix.get("value") or 0) < 0.15:
+        return None
+    rate_v = rate.get("value") if isinstance(rate, dict) else None
+    return EffectEstimate(
+        "chorus", "slow shimmer/detune consistent with a chorus effect",
+        {"rate": f"~{rate_v:.1f} Hz" if rate_v else "0.5-2 Hz",
+         "mix": f"~{mix['value']:.0%}", "depth": "moderate"},
+        f"model-predicted mix {mix['value']:.2f}"
+        + (f" (±{mix['mae']:.2f})" if mix.get("mae") is not None else "")
+        + " from sub-band spectral modulation; no rule-based signature exists",
+        round(min(float(mix["value"]) * 2, 1.0), 2))
+
+
+def estimate_tone(f: ToneFeatures, model_params: dict | None = None) -> ToneEstimate:
     drive = _drive(f)
     chain: list[EffectEstimate] = [drive]
-    for est in (_compression(f, drive.strength), _modulation(f), _delay(f),
+    for est in (_compression(f, drive.strength), _modulation(f),
+                _chorus_from_model(model_params), _delay(f),
                 _reverb(f, drive.strength)):
         if est is not None:
             chain.append(est)

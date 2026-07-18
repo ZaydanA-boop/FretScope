@@ -36,10 +36,13 @@ FEATURE_ORDER = [
     "rms_db", "crest_db", "flat_top_ratio", "harmonic_distortion",
     "spectral_centroid_hz", "tilt_db_per_octave", "decay_t60_s",
     "dynamic_range_db", "modulation_hz", "modulation_depth",
-    "echo_delay_s", "echo_strength",
+    "echo_delay_s", "echo_strength", "subband_mod_hz", "subband_mod_depth",
 ]
-# Model outputs, in order.
-TARGETS = ["drive_db", "reverb_wet", "reverb_room", "delay_seconds", "delay_mix"]
+# Model outputs, in order. Chorus is model-only: no hand-written rule detects it
+# reliably (validated against synthetic chorus), but the forest reads it out of
+# the joint feature set — see the experiment note in CLAUDE.md.
+TARGETS = ["drive_db", "reverb_wet", "reverb_room", "delay_seconds", "delay_mix",
+           "chorus_rate_hz", "chorus_mix"]
 
 
 def features_to_vector(f: ToneFeatures) -> np.ndarray:

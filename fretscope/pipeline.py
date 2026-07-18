@@ -139,11 +139,11 @@ def analyze(source: str, work_dir: Path | str, progress=None,
     try:
         note_stage("tone", "running", "measuring tone features")
         features = extract_tone_features(y, sr)
-        estimate = estimate_tone(features)
-        tone = {"features": features.to_dict(), "estimate": estimate.to_dict(),
-                "confidence": "estimated"}
         from .tone.learned import predict_params
         model_params = predict_params(features)
+        estimate = estimate_tone(features, model_params)
+        tone = {"features": features.to_dict(), "estimate": estimate.to_dict(),
+                "confidence": "estimated"}
         if model_params:
             tone["model_estimate"] = {"params": model_params,
                                       "confidence": "estimated"}

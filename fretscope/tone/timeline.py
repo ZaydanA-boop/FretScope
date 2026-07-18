@@ -116,6 +116,8 @@ def tone_timeline(y: np.ndarray, sr: int) -> list[ToneSegment]:
         if len(edges) >= 3 and edges[-1] - edges[-2] < MIN_SEGMENT_S:
             edges.pop(-2)
 
+    from .learned import predict_params
+
     segments: list[ToneSegment] = []
     for t0, t1 in zip(edges[:-1], edges[1:]):
         seg_audio = y[int(t0 * sr): int(t1 * sr)]
@@ -123,7 +125,7 @@ def tone_timeline(y: np.ndarray, sr: int) -> list[ToneSegment]:
             f = extract_tone_features(seg_audio, sr)
         except ValueError:
             continue  # silent section; nothing to say about its tone
-        est = estimate_tone(f)
+        est = estimate_tone(f, predict_params(f))
         segments.append(ToneSegment(start=t0, end=t1, features=f, estimate=est,
                                     label=est.chain[0].effect))
     return _merge_same_label(segments)

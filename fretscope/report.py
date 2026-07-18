@@ -78,6 +78,8 @@ def _model_params_line(params: dict) -> str:
         ("room size", fmt("reverb_room", lambda v: f"{v:.2f}")),
         ("delay", fmt("delay_seconds", lambda v: f"{v * 1000:.0f} ms")),
         ("delay mix", fmt("delay_mix", lambda v: f"{v * 100:.0f}%")),
+        ("chorus rate", fmt("chorus_rate_hz", lambda v: f"{v:.1f} Hz")),
+        ("chorus mix", fmt("chorus_mix", lambda v: f"{v * 100:.0f}%")),
     ]
     return ", ".join(f"{k} {v}" for k, v in pieces if v)
 

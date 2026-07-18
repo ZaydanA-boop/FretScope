@@ -73,13 +73,20 @@ def _base_clip(rng: np.random.Generator) -> np.ndarray:
 
 def _random_chain(rng: np.random.Generator):
     """Random effect chain + the ground-truth parameter vector."""
-    from pedalboard import Delay, Distortion, Pedalboard, Reverb
+    from pedalboard import Chorus, Delay, Distortion, Pedalboard, Reverb
 
     params = dict.fromkeys(TARGETS, 0.0)
     fx = []
     if rng.random() < 0.7:
         params["drive_db"] = float(rng.uniform(2.0, 35.0))
         fx.append(Distortion(drive_db=params["drive_db"]))
+    if rng.random() < 0.4:
+        params["chorus_rate_hz"] = float(rng.uniform(0.5, 3.0))
+        params["chorus_mix"] = float(rng.uniform(0.25, 0.6))
+        fx.append(Chorus(rate_hz=params["chorus_rate_hz"],
+                         depth=float(rng.uniform(0.3, 0.8)),
+                         centre_delay_ms=float(rng.uniform(5.0, 10.0)),
+                         mix=params["chorus_mix"]))
     if rng.random() < 0.4:
         params["delay_seconds"] = float(rng.uniform(0.12, 0.7))
         params["delay_mix"] = float(rng.uniform(0.1, 0.45))

@@ -13,7 +13,7 @@ from test_tone_features import MELODY, drive
 def test_feature_vector_shape():
     f = extract_tone_features(note_sequence(MELODY, note_dur=0.5), SR)
     v = features_to_vector(f)
-    assert v.shape == (16,)
+    assert v.shape == (18,)
 
 
 def test_predict_params_optional():
@@ -37,3 +37,21 @@ def test_model_says_more_drive_for_driven_audio():
     p_clean = predict_params(f_clean)["drive_db"]["value"]
     p_dirty = predict_params(f_dirty)["drive_db"]["value"]
     assert p_dirty > p_clean + 3.0
+
+
+def test_model_detects_chorus():
+    if not model_available():
+        return
+    try:
+        from pedalboard import Chorus, Pedalboard
+    except ImportError:
+        return  # pedalboard is a dev-only dependency
+    import numpy as np
+    clean = note_sequence(MELODY * 2, note_dur=0.5)
+    board = Pedalboard([Chorus(rate_hz=1.5, depth=0.6, mix=0.5,
+                               centre_delay_ms=7.0)])
+    wet = np.asarray(board(clean, SR)).flatten()
+    wet = (wet / np.max(np.abs(wet))).astype(np.float32)
+    p_clean = predict_params(extract_tone_features(clean, SR))["chorus_mix"]["value"]
+    p_wet = predict_params(extract_tone_features(wet, SR))["chorus_mix"]["value"]
+    assert p_wet > p_clean + 0.1, (p_clean, p_wet)

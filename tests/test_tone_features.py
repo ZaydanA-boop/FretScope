@@ -92,3 +92,37 @@ def test_band_energy_sane(clean):
     f = extract_tone_features(clean, SR)
     assert 0.5 < sum(f.band_energy.values()) <= 1.01
     assert f.to_dict()["rms_db"] == f.rms_db
+
+
+def np_chorus(y, rate=1.5, base_ms=7.0, depth_ms=3.0, mix=0.5, sr=SR):
+    """Chorus via a sinusoidally modulated fractional delay line."""
+    n = len(y)
+    t = np.arange(n) / sr
+    delay = (base_ms + depth_ms * np.sin(2 * np.pi * rate * t)) / 1000 * sr
+    idx = np.clip(np.arange(n) - delay, 0, n - 1)
+    lo = idx.astype(int)
+    frac = idx - lo
+    hi = np.minimum(lo + 1, n - 1)
+    wet = y[lo] * (1 - frac) + y[hi] * frac
+    out = y + mix * wet
+    return (out / np.max(np.abs(out))).astype(np.float32)
+
+
+def test_subband_modulation_fields(clean):
+    """The sub-band wobble features exist and serialize; no single-feature
+    discrimination is asserted because none exists (that's why chorus detection
+    is model-only — see fretscope/tone/features.py docstring)."""
+    f = extract_tone_features(np_chorus(clean), SR)
+    assert f.subband_mod_hz >= 0.0
+    assert 0.0 <= f.subband_mod_depth <= 1.0
+    assert "subband_mod_hz" in f.to_dict()
+
+
+def test_features_from_dict_tolerates_old_reports(clean):
+    from fretscope.tone.features import features_from_dict
+    d = extract_tone_features(clean, SR).to_dict()
+    d.pop("subband_mod_hz")
+    d.pop("subband_mod_depth")
+    d["some_future_field"] = 42
+    f = features_from_dict(d)
+    assert f.subband_mod_hz == 0.0

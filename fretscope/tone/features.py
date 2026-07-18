@@ -48,9 +48,23 @@ class ToneFeatures:
     modulation_depth: float         # 0..1
     echo_delay_s: float             # 0 if no clear echo
     echo_strength: float            # 0..1 envelope autocorrelation at the echo lag
+    # Sub-band spectral modulation (0.3-4 Hz, note rate masked): the raw material
+    # for chorus detection. No hand-written rule can call "chorus" from these two
+    # numbers alone (validated: single-feature detectors failed on synthetic
+    # chorus) — only the learned model reads them, jointly with everything else.
+    subband_mod_hz: float = 0.0
+    subband_mod_depth: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def features_from_dict(d: dict) -> "ToneFeatures":
+    """Rebuild ToneFeatures from a stored report dict, tolerating reports written
+    by older versions that lack newer (defaulted) fields."""
+    import dataclasses
+    known = {f.name for f in dataclasses.fields(ToneFeatures)}
+    return ToneFeatures(**{k: v for k, v in d.items() if k in known})
 
 
 BANDS = {
@@ -106,6 +120,7 @@ def extract_tone_features(y: np.ndarray, sr: int) -> ToneFeatures:
 
     mod_hz, mod_depth = _envelope_modulation(frame_rms, sr, hop, onset_rate)
     echo_s, echo_strength = _echo(frame_rms, sr, hop, onset_rate)
+    sb_hz, sb_depth = _subband_modulation(S, freqs, sr, hop, onset_rate)
 
     return ToneFeatures(
         rms_db=round(rms_db, 2), crest_db=round(crest_db, 2),
@@ -116,6 +131,7 @@ def extract_tone_features(y: np.ndarray, sr: int) -> ToneFeatures:
         decay_t60_s=round(t60, 2), dynamic_range_db=round(dyn, 2),
         modulation_hz=round(mod_hz, 2), modulation_depth=round(mod_depth, 3),
         echo_delay_s=round(echo_s, 3), echo_strength=round(echo_strength, 3),
+        subband_mod_hz=round(sb_hz, 2), subband_mod_depth=round(sb_depth, 4),
     )
 
 
@@ -181,6 +197,33 @@ def _dynamic_range(frame_rms, active) -> float:
         return 0.0
     db = 20 * np.log10(act + 1e-9)
     return float(np.percentile(db, 95) - np.percentile(db, 10))
+
+
+def _subband_modulation(S, freqs, sr, hop, onset_rate: float) -> tuple[float, float]:
+    """Slow (0.3-4 Hz) modulation of individual frequency-band envelopes.
+
+    Chorus/flanger sweep comb notches through the spectrum: each frequency bin's
+    level wobbles at the effect rate, with phases that differ across bins. We
+    average each bin's detrended log-envelope modulation spectrum and pick the
+    strongest non-note-rate peak. Kept as raw evidence for the learned model.
+    """
+    fps = sr / hop
+    sel = (freqs >= 500) & (freqs <= 6000)
+    L = np.log(S[sel] + 1e-6)
+    if L.shape[1] < int(4 * fps):
+        return 0.0, 0.0
+    k = max(3, int(fps))
+    kernel = np.ones(k) / k
+    trend = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 1, L)
+    f_m, psd = scipy.signal.periodogram(L - trend, fs=fps, axis=1)
+    mean_psd = psd.mean(axis=0)
+    band = (f_m >= 0.3) & (f_m <= 4.0)
+    mask = band & ~np.array([_near_onset_harmonic(f, onset_rate) for f in f_m])
+    if not np.any(mask):
+        return 0.0, 0.0
+    peak = int(np.argmax(mean_psd[mask]))
+    depth = float(mean_psd[mask][peak] / (np.sum(mean_psd[band]) + 1e-12))
+    return float(f_m[mask][peak]), depth
 
 
 def _near_onset_harmonic(f: float, onset_rate: float, rel_tol: float = 0.18) -> bool:

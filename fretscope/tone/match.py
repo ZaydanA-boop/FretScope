@@ -38,7 +38,9 @@ def _drive_index(f: ToneFeatures) -> float:
     return 0.5 * ft + 0.3 * hd + 0.2 * crush
 
 
-def compare_tones(target: ToneFeatures, attempt: ToneFeatures) -> list[MatchAdvice]:
+def compare_tones(target: ToneFeatures, attempt: ToneFeatures,
+                  target_params: dict | None = None,
+                  attempt_params: dict | None = None) -> list[MatchAdvice]:
     advice: list[MatchAdvice] = []
 
     # Drive
@@ -126,6 +128,30 @@ def compare_tones(target: ToneFeatures, attempt: ToneFeatures) -> list[MatchAdvi
     else:
         advice.append(MatchAdvice("delay", "close", 0.0, "s",
                                   "Neither has an audible delay."))
+
+    # Chorus (model-predicted on both sides; skipped when no model is installed)
+    def chorus_mix(p):
+        v = (p or {}).get("chorus_mix")
+        return float(v["value"]) if isinstance(v, dict) else None
+
+    t_mix, a_mix = chorus_mix(target_params), chorus_mix(attempt_params)
+    if t_mix is not None and a_mix is not None:
+        dch = a_mix - t_mix
+        t_rate = (target_params or {}).get("chorus_rate_hz", {})
+        rate_txt = (f" around {t_rate['value']:.1f} Hz"
+                    if isinstance(t_rate, dict) and t_rate.get("value") else "")
+        if t_mix >= 0.15 and a_mix < t_mix * 0.5:
+            advice.append(MatchAdvice("chorus", "adjust", round(dch, 2), "mix",
+                                      "The record has a chorus-like shimmer yours "
+                                      f"lacks; add chorus{rate_txt}, mix ~"
+                                      f"{t_mix:.0%}."))
+        elif a_mix >= 0.15 and t_mix < a_mix * 0.5:
+            advice.append(MatchAdvice("chorus", "adjust", round(dch, 2), "mix",
+                                      "You have audible chorus the record doesn't; "
+                                      "switch it off or drop the mix."))
+        else:
+            advice.append(MatchAdvice("chorus", "close", round(dch, 2), "mix",
+                                      "Chorus presence is comparable."))
 
     # Compression / dynamics
     dc = attempt.crest_db - target.crest_db

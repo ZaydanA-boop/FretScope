@@ -1,6 +1,6 @@
 {
   "n_samples": 700,
-  "n_features": 16,
+  "n_features": 18,
   "feature_order": [
     "rms_db",
     "crest_db",
@@ -14,6 +14,8 @@
     "modulation_depth",
     "echo_delay_s",
     "echo_strength",
+    "subband_mod_hz",
+    "subband_mod_depth",
     "band:low",
     "band:mid",
     "band:presence",
@@ -24,14 +26,18 @@
     "reverb_wet",
     "reverb_room",
     "delay_seconds",
-    "delay_mix"
+    "delay_mix",
+    "chorus_rate_hz",
+    "chorus_mix"
   ],
   "test_mae": {
-    "drive_db": 1.9896292616381914,
-    "reverb_wet": 0.13030892828196794,
-    "reverb_room": 0.2408274039733961,
-    "delay_seconds": 0.16812329070528742,
-    "delay_mix": 0.10085242667875809
+    "drive_db": 2.590284573741125,
+    "reverb_wet": 0.12456030593418976,
+    "reverb_room": 0.25283600265524536,
+    "delay_seconds": 0.15758338870079922,
+    "delay_mix": 0.1050174751990469,
+    "chorus_rate_hz": 0.523390441694771,
+    "chorus_mix": 0.12436415831249664
   },
   "training_domain": "synthesized Karplus-Strong guitar through pedalboard Distortion/Delay/Reverb \u2014 NOT real amps; see learned.py"
 }
