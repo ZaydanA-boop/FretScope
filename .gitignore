@@ -11,7 +11,7 @@ venv/
 .coverage
 htmlcov/
 
-# Project data (downloaded audio, stems, model caches, job output)
+# Local artifacts: downloaded audio, stems, job output, model caches
 data/
 jobs/
 *.wav
