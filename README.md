@@ -111,5 +111,6 @@ Retrain the tone model: `python -m fretscope.tone.train` (~30 min CPU).
   of the original rig.
 - Sung-lyric recognition mishears; lines are labeled heuristic.
 
-See `CLAUDE.md` for the full decision log and `docs/SOP.md` for the working
+See [docs/DECISIONS.md](docs/DECISIONS.md) for the full decision log — including
+the approaches that didn't work — and [docs/SOP.md](docs/SOP.md) for the working
 conventions (confidence labels, commit style, plain-English-first rule).

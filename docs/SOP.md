@@ -12,14 +12,14 @@ follow this rule.
 
 ## 2. Session start ritual
 
-Read `CLAUDE.md` before touching code. It holds current phase, decisions, and limitations.
+Read the decision log (`docs/DECISIONS.md`) before touching code. It holds the key decisions, their reasons, and known limitations.
 Update it in the same commit as any change that makes it stale.
 
 ## 3. Blockers are flagged, not buried
 
 If something can't be done properly (library won't install, method doesn't actually work,
 accuracy is bad), say so **before** working around it. Workarounds ship only with:
-- a note in `CLAUDE.md` under "Known limitations", and
+- a note in `docs/DECISIONS.md` under the relevant section, and
 - a visible flag in user-facing output if results are affected.
 Never quietly ship something that looks confident but isn't backed by the method.
 
@@ -28,7 +28,7 @@ Never quietly ship something that looks confident but isn't backed by the method
 - One commit per completed phase or coherent feature. No giant end-of-project commits.
 - Message format: short imperative summary line, blank line, then body explaining *why* and
   any limitation introduced. Reference the phase, e.g. `Phase 3: transcription`.
-- Code and the doc updates it requires (CLAUDE.md, SOP) travel in the same commit.
+- Code and the doc updates it requires (DECISIONS.md, SOP) travel in the same commit.
 - Never commit downloaded audio, stems, or model weights (`.gitignore` covers this).
 
 ## 5. Confidence labeling

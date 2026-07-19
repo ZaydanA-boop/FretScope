@@ -26,3 +26,6 @@ jobs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local AI-session context (curated version lives in docs/DECISIONS.md)
+CLAUDE.md
