@@ -61,14 +61,15 @@ async function api(path, opts) {
 /* ---------- health ---------- */
 
 async function refreshHealth() {
+  // quiet by default: chips appear only when something is actually broken
   try {
     const h = await api("/api/health");
-    const chip = (ok, on, off) =>
-      `<span class="chip ${ok ? "" : "off"}">${ok ? on : off}</span>`;
-    $("health").innerHTML =
-      chip(h.ffmpeg, "audio engine", "ffmpeg missing") +
-      chip(h.separation_available, "separation", "separation off") +
-      chip(h.model_available, "tone model", "no tone model");
+    const warnings = [];
+    if (!h.ffmpeg) warnings.push("ffmpeg missing");
+    if (!h.separation_available) warnings.push("separation off");
+    if (!h.model_available) warnings.push("no tone model");
+    $("health").innerHTML = warnings.map((w) =>
+      `<span class="chip off">${w}</span>`).join("");
   } catch (e) {
     $("health").innerHTML = '<span class="chip off">server unreachable</span>';
   }
@@ -296,12 +297,11 @@ function renderReport(job, report) {
   const heading = $("transcription-heading");
   const body = $("transcription-body");
   const note = $("classification-note");
-  const chordsDetails = $("chords-details");
   const diagrams = $("chord-diagrams");
-  chordsDetails.hidden = true;
-  chordsDetails.open = false;
+  const ribbonWrap = $("ribbon-wrap");
   body.hidden = false;
   diagrams.innerHTML = "";
+  ribbonWrap.hidden = true;
   if (tr.kind === "lead") {
     heading.textContent = "Tab";
     body.textContent = tr.tab || "(empty)";
@@ -320,12 +320,33 @@ function renderReport(job, report) {
     note.textContent = "This part strums chords. Here's what it leans on:";
     note.title = tr.classification?.rationale || "";
     renderChordDiagrams(diagrams, top, total);
-    $("chords-body").textContent = tr.chart || "(empty)";
-    chordsDetails.hidden = false;
+    renderChordRibbon(tr.chords || []);
   } else {
     heading.textContent = "Transcription";
     body.textContent = "Unavailable: " + (tr.error || "unknown failure");
     note.textContent = "";
+  }
+
+  // lyrics with chords (only present when a vocals stem existed and whisper ran)
+  const lyr = report.lyrics || {};
+  const lyricsBox = $("lyrics");
+  lyricsBox.hidden = !(lyr.lines && lyr.lines.length);
+  if (lyr.lines && lyr.lines.length) {
+    $("lyrics-note").textContent = lyr.note || "";
+    const wrap = $("lyrics-lines");
+    wrap.innerHTML = "";
+    for (const line of lyr.lines) {
+      const div = document.createElement("div");
+      div.className = "lyric-line";
+      div.innerHTML = `<span class="lyric-chord">${esc(line.chord || "")}</span>
+        <span class="lyric-text">${esc(line.text)}</span>`;
+      div.title = `${fmtTime(line.start)} - ${fmtTime(line.end)}`;
+      div.addEventListener("click", () => {
+        const audio = $("stem-audio");
+        if (audio.src) { audio.currentTime = line.start; audio.play(); }
+      });
+      wrap.appendChild(div);
+    }
   }
 
   // switching songs: reset scope and clear the previous song's match results
@@ -432,7 +453,7 @@ function chordShape(label) {
 
 function chordSVG(shape) {
   const { frets, base } = shape;
-  const left = 14, top = 24, w = 68, h = 80, cols = 5, rows = 5;
+  const left = 26, top = 24, w = 64, h = 80, cols = 5, rows = 5;
   const sx = (i) => left + (i * w) / cols;   // string x (0..5)
   const fy = (i) => top + (i * h) / rows;    // fret line y (0..5)
   let s = "";
@@ -446,7 +467,9 @@ function chordSVG(shape) {
   if (base === 1) {
     s += `<line class="cd-nut" x1="${left - 1}" y1="${top}" x2="${left + w + 1}" y2="${top}"/>`;
   } else {
-    s += `<text class="cd-basefret" x="${left + w + 4}" y="${fy(1) - 4}">${base}fr</text>`;
+    // position label sits LEFT of the first fret row so it never collides
+    s += `<text class="cd-basefret" x="${left - 6}" y="${fy(1) - h / rows / 2 + 3}"
+            text-anchor="end">${base}fr</text>`;
   }
   // finger numbering: lowest frets first, barres get one finger
   const fretted = frets.map((f, i) => ({ f, i })).filter((o) => o.f > 0);
@@ -484,6 +507,42 @@ function chordSVG(shape) {
   });
   return `<svg viewBox="0 0 100 116" role="img">${s}</svg>`;
 }
+
+/* Chord ribbon: the song as a strip of chord blocks, synced to the stem player.
+   Replaces the old wall-of-timestamps chart. */
+function renderChordRibbon(chords) {
+  const wrap = $("ribbon-wrap");
+  const ribbon = $("chord-ribbon");
+  ribbon.innerHTML = "";
+  const spans = chords.filter((c) => c.end > c.start);
+  if (!spans.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const audio = $("stem-audio");
+  for (const c of spans) {
+    const block = document.createElement("button");
+    block.type = "button";
+    block.className = "rseg" + (c.chord === "N" ? " rest" : "");
+    block.style.flexGrow = String(Math.max(c.end - c.start, 0.5));
+    block.textContent = c.chord === "N" ? "" : c.chord;
+    block.title = `${c.chord === "N" ? "no chord" : c.chord} · ` +
+      `${fmtTime(c.start)} to ${fmtTime(c.end)}`;
+    block.dataset.start = c.start;
+    block.dataset.end = c.end;
+    block.addEventListener("click", () => {
+      if (audio.src) { audio.currentTime = c.start; audio.play(); }
+    });
+    ribbon.appendChild(block);
+  }
+}
+
+// follow playback: light up the chord under the playhead
+$("stem-audio").addEventListener("timeupdate", (ev) => {
+  const t = ev.target.currentTime;
+  for (const b of document.querySelectorAll(".chord-ribbon .rseg")) {
+    const on = t >= +b.dataset.start && t < +b.dataset.end;
+    b.classList.toggle("playing", on);
+  }
+});
 
 function renderChordDiagrams(container, topChords, totalDur) {
   container.innerHTML = "";

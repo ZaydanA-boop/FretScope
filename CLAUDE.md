@@ -116,6 +116,27 @@ Dashboard v4 (app-like, lay-friendly):
   guess?" tooltip; classification notes are plain sentences (rationale in title
   attr). Keep this register in future copy.
 
+## Lyrics + Dashboard v5 (2026-07-18 fourth pass)
+
+- Lyrics: separation now also saves the vocals stem; `lyrics.py` transcribes it
+  with faster-whisper (base model, CPU int8, VAD-filtered; env
+  FRETSCOPE_WHISPER_MODEL) and each line gets the chord sounding at its
+  midpoint. Degrades to nothing without faster-whisper/vocals/singing. The
+  `[lyrics]` extra documents the dep; it IS installed in this venv.
+- The wall-of-timestamps chord chart is GONE. Replaced by a chord ribbon
+  synced to the stem player (timeupdate highlights the playing chord; click to
+  seek) and clickable lyric lines that also seek.
+- Topbar tabs are now a little guitar: SVG headstock + body outlines, tabs as
+  fret-separated segments on the neck, line icons above each label.
+- Health chips only render when something is BROKEN (user: remove the green
+  chips). Sidebar collapse animates as a drawer (grid-column transition,
+  contents keep width). Panel content is centered (user preference); tab/pre
+  blocks stay left-aligned inside centered containers.
+- Collision fixes: chord-diagram position label ("2fr") moved to the LEFT of
+  the grid with text-anchor=end; pedal "why this guess?" is in normal flow
+  (was absolutely positioned over settings); pedal text wraps with
+  overflow-wrap; h3 padded clear of the LED.
+
 ## Environment (this machine)
 
 - Windows 11, PowerShell. System Python is **3.14** — too new for the audio ML stack.
