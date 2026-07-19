@@ -20,7 +20,7 @@ SEPARATION_CAVEAT = (
 
 def build_report(meta: dict, stages: dict, separation: SeparationResult | None = None,
                  transcription: dict | None = None, tone: dict | None = None,
-                 error: str | None = None) -> dict:
+                 facts: dict | None = None, error: str | None = None) -> dict:
     limitations: list[str] = []
     if separation is not None:
         limitations.extend(separation.notes)
@@ -54,6 +54,7 @@ def build_report(meta: dict, stages: dict, separation: SeparationResult | None =
         },
         "transcription": transcription or {},
         "tone": tone or {},
+        "facts": facts or {},
         "limitations": limitations,
     }
     if error:
@@ -94,6 +95,14 @@ def render_markdown(report: dict) -> str:
     if report.get("error"):
         lines += ["## ⚠ Analysis failed", "", report["error"], ""]
         return "\n".join(lines)
+
+    facts = report.get("facts") or {}
+    if facts.get("key"):
+        tuning = facts.get("tuning_cents", 0)
+        tuning_txt = ("standard pitch" if abs(tuning) < 15 else
+                      f"{abs(tuning):.0f} cents {'sharp' if tuning > 0 else 'flat'}")
+        lines += [f"**Key** {facts['key']} · **Tempo** ~{facts.get('tempo_bpm', 0):.0f} "
+                  f"BPM · **Tuning** {tuning_txt}  `confidence: heuristic`", ""]
 
     sep = report.get("separation")
     if sep:

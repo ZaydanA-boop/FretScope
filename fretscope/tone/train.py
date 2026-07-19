@@ -24,13 +24,14 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import scipy.signal
 
 from .. import ANALYSIS_SR as SR
 from .features import extract_tone_features
 from .learned import FEATURE_ORDER, MODEL_DIR, MODEL_PATH, METRICS_PATH, TARGETS, \
     features_to_vector
 
-N_SAMPLES = 700
+N_SAMPLES = 1400
 CLIP_SECONDS = 3.0
 
 # Pentatonic-ish pitch pool across the guitar's range (Hz)
@@ -38,45 +39,64 @@ PITCH_POOL = [82.41, 98.0, 110.0, 130.81, 146.83, 164.81, 196.0, 220.0,
               246.94, 293.66, 329.63, 392.0, 440.0, 523.25]
 
 
-def _pluck(freq: float, dur: float, rng: np.random.Generator) -> np.ndarray:
+def _pluck(freq: float, dur: float, rng: np.random.Generator,
+           decay: float = 0.996) -> np.ndarray:
     n = int(SR * dur)
     period = max(2, int(round(SR / freq)))
     buf = rng.uniform(-1, 1, period)
     out = np.empty(n)
     for i in range(n):
         out[i] = buf[i % period]
-        buf[i % period] = 0.996 * 0.5 * (buf[i % period] + buf[(i + 1) % period])
+        buf[i % period] = decay * 0.5 * (buf[i % period] + buf[(i + 1) % period])
     return out / (np.max(np.abs(out)) + 1e-9)
 
 
 def _base_clip(rng: np.random.Generator) -> np.ndarray:
-    """A short riff (70%) or strummed chord pattern (30%)."""
-    if rng.random() < 0.7:
-        note_dur = rng.uniform(0.25, 0.6)
+    """A varied short performance: riff or strums, varied sustain and brightness.
+
+    Variety here is what makes the model transfer: research systems train on
+    hundreds of hours of both monophonic and polyphonic takes, so we at least
+    vary string sustain (palm-muted to ringing), register, note rate, and
+    'tone knob' brightness per clip.
+    """
+    decay = float(rng.uniform(0.985, 0.999))   # palm-muted .. ringing
+    if rng.random() < 0.65:
+        note_dur = rng.uniform(0.22, 0.65)
         n_notes = max(3, int(CLIP_SECONDS / note_dur))
         freqs = rng.choice(PITCH_POOL, size=n_notes)
-        y = np.concatenate([_pluck(f, note_dur, rng) for f in freqs])
+        y = np.concatenate([_pluck(f, note_dur, rng, decay) for f in freqs])
     else:
         root = float(rng.choice(PITCH_POOL[:8]))
         ratios = [1.0, 1.25, 1.5] if rng.random() < 0.5 else [1.0, 1.189, 1.5]
-        strum_dur = rng.uniform(0.8, 1.5)
+        strum_dur = rng.uniform(0.7, 1.5)
         n_strums = max(2, int(CLIP_SECONDS / strum_dur))
         strums = []
         for _ in range(n_strums):
-            voices = [_pluck(root * r * o, strum_dur, rng)
+            voices = [_pluck(root * r * o, strum_dur, rng, decay)
                       for r in ratios for o in (1, 2)]
             strums.append(np.sum(voices, axis=0))
         y = np.concatenate(strums)
     y = y[: int(CLIP_SECONDS * SR)]
+    # guitar tone-knob emulation: one-pole lowpass at a random cutoff
+    if rng.random() < 0.6:
+        cutoff = float(rng.uniform(1200, 8000))
+        alpha = float(np.exp(-2 * np.pi * cutoff / SR))
+        y = np.asarray(scipy.signal.lfilter([1 - alpha], [1, -alpha], y))
     return (y / (np.max(np.abs(y)) + 1e-9)).astype(np.float32)
 
 
 def _random_chain(rng: np.random.Generator):
     """Random effect chain + the ground-truth parameter vector."""
-    from pedalboard import Chorus, Delay, Distortion, Pedalboard, Reverb
+    from pedalboard import (Chorus, Compressor, Delay, Distortion, Pedalboard,
+                            Reverb)
 
     params = dict.fromkeys(TARGETS, 0.0)
+    params["comp_ratio"] = 1.0   # 1:1 = no compression
     fx = []
+    if rng.random() < 0.35:
+        params["comp_ratio"] = float(rng.uniform(2.0, 8.0))
+        fx.append(Compressor(threshold_db=float(rng.uniform(-30.0, -12.0)),
+                             ratio=params["comp_ratio"]))
     if rng.random() < 0.7:
         params["drive_db"] = float(rng.uniform(2.0, 35.0))
         fx.append(Distortion(drive_db=params["drive_db"]))

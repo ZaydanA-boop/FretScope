@@ -107,6 +107,14 @@ def analyze(source: str, work_dir: Path | str, progress=None,
     if sep.stem_path is None:
         sep.stem_path = save_wav(work_dir / "guitar_stem.wav", y, sr)
 
+    # ---- song facts (key / tempo / tuning) ----------------------------------
+    facts: dict = {}
+    try:
+        from .transcription.musicfacts import analyze_facts
+        facts = analyze_facts(y, sr).to_dict()
+    except Exception:
+        traceback.print_exc()
+
     # ---- classification + transcription ------------------------------------
     transcription: dict = {}
     try:
@@ -183,5 +191,5 @@ def analyze(source: str, work_dir: Path | str, progress=None,
 
     return build_report(
         meta=meta, stages=stages, separation=sep, transcription=transcription,
-        tone=tone,
+        tone=tone, facts=facts,
     )

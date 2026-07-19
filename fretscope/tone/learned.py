@@ -42,7 +42,7 @@ FEATURE_ORDER = [
 # reliably (validated against synthetic chorus), but the forest reads it out of
 # the joint feature set — see the experiment note in CLAUDE.md.
 TARGETS = ["drive_db", "reverb_wet", "reverb_room", "delay_seconds", "delay_mix",
-           "chorus_rate_hz", "chorus_mix"]
+           "chorus_rate_hz", "chorus_mix", "comp_ratio"]
 
 
 def features_to_vector(f: ToneFeatures) -> np.ndarray:

@@ -37,14 +37,27 @@ class ChordSpan:
     similarity: float  # mean template similarity over the span (0..1)
 
 
+# Triads plus the three everyday 7th flavors. 7th templates are down-weighted
+# so a plain triad wins unless the 7th is clearly in the audio: string harmonics
+# alone deposit energy on 7th degrees (the third's own 3rd harmonic IS the
+# major 7th), so an even fight would relabel most triads as 7th chords.
+_QUALITIES = (
+    ("", (0, 4, 7), 1.0),
+    ("m", (0, 3, 7), 1.0),
+    ("7", (0, 4, 7, 10), 0.94),
+    ("maj7", (0, 4, 7, 11), 0.94),
+    ("m7", (0, 3, 7, 10), 0.94),
+)
+
+
 def _templates() -> tuple[list[str], np.ndarray]:
     labels, rows = [], []
     for root in range(12):
-        for quality, intervals in (("", (0, 4, 7)), ("m", (0, 3, 7))):
+        for quality, intervals, weight in _QUALITIES:
             v = np.zeros(12)
             v[[(root + i) % 12 for i in intervals]] = 1.0
             labels.append(PITCH_CLASSES[root] + quality)
-            rows.append(v / np.linalg.norm(v))
+            rows.append(weight * v / np.linalg.norm(v))
     return labels, np.array(rows)
 
 
@@ -75,6 +88,7 @@ def recognize_chords(y: np.ndarray, sr: int) -> list[ChordSpan]:
         v = v / (np.linalg.norm(v) + 1e-9)
         sims = TEMPLATE_MATRIX @ v
         best = int(np.argmax(sims))
+        best = _prefer_triad_on_ties(best, sims)
         label = TEMPLATE_LABELS[best] if sims[best] >= MIN_SIMILARITY else "N"
         if spans and spans[-1].label not in ("N", label):
             prev_sim = float(sims[TEMPLATE_LABELS.index(spans[-1].label)])
@@ -83,6 +97,33 @@ def recognize_chords(y: np.ndarray, sr: int) -> list[ChordSpan]:
         spans.append(ChordSpan(label, t0, t1, float(sims[best])))
 
     return _merge(spans)
+
+
+def _base_triad(label: str) -> str | None:
+    """Am7 → Am, Cmaj7 → C, A7 → A; None if not a 7th label."""
+    if label.endswith("maj7"):
+        return label[:-4]
+    if label.endswith("m7"):
+        return label[:-1]
+    if label.endswith("7"):
+        return label[:-1]
+    return None
+
+
+SEVENTH_MARGIN = 0.02
+
+
+def _prefer_triad_on_ties(best: int, sims: np.ndarray) -> int:
+    """A 7th chord must clearly beat its own base triad. Note attacks are
+    harmonic-rich (the third's 3rd harmonic IS the major 7th), which nudges 7th
+    templates ahead by a hair on plain triads."""
+    base = _base_triad(TEMPLATE_LABELS[best])
+    if base is None:
+        return best
+    base_idx = TEMPLATE_LABELS.index(base)
+    if float(sims[base_idx]) >= float(sims[best]) - SEVENTH_MARGIN:
+        return base_idx
+    return best
 
 
 def _merge(spans: list[ChordSpan]) -> list[ChordSpan]:

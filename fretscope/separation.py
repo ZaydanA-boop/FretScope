@@ -21,6 +21,11 @@ says transcription/tone ran on the whole song, not an isolated guitar.
 Models, switchable via FRETSCOPE_SEPARATION_MODEL:
     htdemucs_6s (default)  6 stems incl. dedicated guitar
     htdemucs               4 stems; guitar lives in "other"
+    htdemucs_ft            fine-tuned 4-stem, better quality, ~4x slower
+
+Quality/compute dial: FRETSCOPE_DEMUCS_SHIFTS (default 0). Demucs' "shift
+trick" averages predictions over N random time-shifts of the input; each shift
+buys a little quality for a proportional slowdown (per the official docs).
 """
 
 from __future__ import annotations
@@ -125,10 +130,13 @@ def separate_guitar(src_wav: Path | str, work_dir: Path | str,
     ref = wav.mean(0)
     wav = (wav - ref.mean()) / (ref.std() + 1e-8)
 
+    shifts = int(os.environ.get("FRETSCOPE_DEMUCS_SHIFTS", "0") or 0)
     if progress:
-        progress("separating stems with Demucs (CPU — this can take a few minutes)")
+        progress("separating stems with Demucs (CPU — this can take a few minutes)"
+                 + (f", averaging {shifts + 1} shifted passes" if shifts else ""))
     with torch.no_grad():
-        sources = apply_model(model, wav[None], device="cpu", progress=False)[0]
+        sources = apply_model(model, wav[None], device="cpu", progress=False,
+                              shifts=shifts, overlap=0.25)[0]
     sources = sources * (ref.std() + 1e-8) + ref.mean()
 
     stems = {name: s.mean(0).cpu().numpy().astype(np.float32)
