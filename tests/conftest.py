@@ -1,4 +1,4 @@
-"""Shared audio fixtures.
+"""Shared audio fixtures for the test suite.
 
 No copyrighted recordings ship with this repo: tests synthesize their own signals.
 The pluck fixture uses Karplus-Strong synthesis — a feedback delay line that sounds
