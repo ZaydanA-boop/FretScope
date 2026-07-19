@@ -12,10 +12,10 @@ no GPU, no API keys.
 
 | | |
 |---|---|
-| ![Analysis pipeline running](docs/screenshots/progress.png) | ![Tone report with timeline](docs/screenshots/report-tone.png) |
-| *Live stage progress: download → separate → transcribe → tone* | *Key/tempo/tuning, isolated stem player, tone timeline* |
-| ![Estimated pedalboard](docs/screenshots/rig.png) | ![Chords and synced lyrics](docs/screenshots/chords-lyrics.png) |
-| *The estimated rig, drawn as stompboxes with model-predicted settings* | *Chord diagrams, playback-synced chord ribbon, lyrics with chords* |
+| ![Analysis pipeline running](docs/screenshots/progress.png) | ![Tone verdict, timeline, and tone matching](docs/screenshots/report-tone.png) |
+| *A song being analyzed live: fetch → decode → isolate guitar → classify → transcribe → tone, each stage reporting as it runs* | *The tone verdict with the song's tone timeline, and "Match my tone": a recorded attempt scored against the record aspect by aspect (drive, brightness, reverb...)* |
+| ![Estimated rig drawn as a pedalboard](docs/screenshots/rig.png) | ![Chord diagrams, chord ribbon, and lyrics](docs/screenshots/chords-lyrics.png) |
+| *The estimated rig as stompboxes — knobs set to model-predicted values, with a "why this guess?" evidence link on every pedal* | *Playable chord diagrams ranked by how much of the song they cover, a playback-synced chord ribbon, and lyrics aligned to the chords under them* |
 
 ## What you get per song
 
