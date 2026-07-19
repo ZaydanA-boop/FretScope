@@ -20,7 +20,8 @@ SEPARATION_CAVEAT = (
 
 def build_report(meta: dict, stages: dict, separation: SeparationResult | None = None,
                  transcription: dict | None = None, tone: dict | None = None,
-                 facts: dict | None = None, error: str | None = None) -> dict:
+                 facts: dict | None = None, lyrics: dict | None = None,
+                 error: str | None = None) -> dict:
     limitations: list[str] = []
     if separation is not None:
         limitations.extend(separation.notes)
@@ -55,6 +56,7 @@ def build_report(meta: dict, stages: dict, separation: SeparationResult | None =
         "transcription": transcription or {},
         "tone": tone or {},
         "facts": facts or {},
+        "lyrics": lyrics or {},
         "limitations": limitations,
     }
     if error:
@@ -155,6 +157,15 @@ def render_markdown(report: dict) -> str:
         for seg in timeline:
             lines.append(f"- {seg['start']:.0f}s–{seg['end']:.0f}s: "
                          f"**{seg['label']}** — {seg['estimate']['summary']}")
+        lines.append("")
+
+    lyr = report.get("lyrics") or {}
+    if lyr.get("lines"):
+        lines.append("## Lyrics with chords  `confidence: heuristic`")
+        lines.append("")
+        for ln in lyr["lines"]:
+            prefix = f"[{ln['chord']}] " if ln.get("chord") else ""
+            lines.append(f"- {prefix}{ln['text']}")
         lines.append("")
 
     if report.get("limitations"):

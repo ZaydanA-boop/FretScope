@@ -156,6 +156,32 @@ def analyze(source: str, work_dir: Path | str, progress=None,
         note_stage("transcribe", "failed", str(e))
         transcription = {"kind": "unavailable", "error": str(e)}
 
+    # ---- lyrics (only possible when a vocals stem exists) -------------------
+    lyrics: dict = {}
+    try:
+        from .lyrics import attach_chords, lyrics_available, transcribe_lyrics
+        if sep.vocals_path and lyrics_available():
+            note_stage("lyrics", "running", "transcribing the vocal")
+            lines = transcribe_lyrics(
+                sep.vocals_path,
+                progress=lambda msg: note_stage("lyrics", "running", msg))
+            if lines:
+                lines = attach_chords(lines, transcription.get("chords", []))
+                lyrics = {
+                    "lines": lines,
+                    "confidence": "heuristic",
+                    "note": ("Sung-word recognition plus time-aligned chords; "
+                             "expect a misheard word here and there."),
+                }
+                note_stage("lyrics", "done", f"{len(lines)} lines")
+            else:
+                note_stage("lyrics", "done", "no singing detected")
+        elif sep.vocals_path:
+            note_stage("lyrics", "done", "skipped (faster-whisper not installed)")
+    except Exception as e:
+        traceback.print_exc()
+        note_stage("lyrics", "failed", str(e))
+
     # ---- tone ---------------------------------------------------------------
     tone: dict = {}
     try:
@@ -191,5 +217,5 @@ def analyze(source: str, work_dir: Path | str, progress=None,
 
     return build_report(
         meta=meta, stages=stages, separation=sep, transcription=transcription,
-        tone=tone, facts=facts,
+        tone=tone, facts=facts, lyrics=lyrics,
     )

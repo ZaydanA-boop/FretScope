@@ -62,6 +62,7 @@ class SeparationResult:
     method: str                  # e.g. "demucs/htdemucs_6s" or "none"
     notes: list[str] = field(default_factory=list)
     stem_path: Path | None = None
+    vocals_path: Path | None = None   # saved for lyric transcription
 
 
 LIMITATION_NOTE = (
@@ -151,9 +152,19 @@ def separate_guitar(src_wav: Path | str, work_dir: Path | str,
     stem_path = save_wav(work_dir / "guitar_stem.wav", y, sr=sr)
     raw_path.unlink(missing_ok=True)
 
+    # Keep the vocals stem too: it feeds lyric transcription downstream
+    vocals_path = None
+    if "vocals" in stems:
+        raw_v = work_dir / "vocals_raw.wav"
+        save_wav(raw_v, stems["vocals"], sr=model.samplerate)
+        yv, srv = load_audio(raw_v, sr=ANALYSIS_SR)
+        vocals_path = save_wav(work_dir / "vocals_stem.wav", yv, sr=srv)
+        raw_v.unlink(missing_ok=True)
+
     return SeparationResult(
         audio=y, sr=sr, separated=True, stem_name=stem_name,
         method=f"demucs/{model_name}", notes=notes, stem_path=stem_path,
+        vocals_path=vocals_path,
     )
 
 
