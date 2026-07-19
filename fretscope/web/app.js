@@ -25,6 +25,18 @@ function toast(msg, kind) {
   setTimeout(() => box.remove(), 4200);
 }
 
+/* ---------- sidebar collapse ---------- */
+
+const layout = $("layout");
+if (localStorage.getItem("fs-rack-hidden") === "1") {
+  layout.classList.add("rack-hidden");
+}
+$("rack-toggle").addEventListener("click", () => {
+  layout.classList.toggle("rack-hidden");
+  localStorage.setItem("fs-rack-hidden",
+    layout.classList.contains("rack-hidden") ? "1" : "0");
+});
+
 function relTime(iso) {
   if (!iso) return "";
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -196,6 +208,8 @@ function show(view) {
   for (const id of ["stage-empty", "progress-view", "report-view", "error-view"]) {
     $(id).hidden = id !== view;
   }
+  // section tabs only make sense while a report is on screen
+  $("section-tabs").hidden = view !== "report-view";
 }
 
 const STAGE_ORDER = ["download", "decode", "separation", "classify", "transcribe", "tone"];
@@ -257,32 +271,55 @@ function renderReport(job, report) {
         : `Heads up: ${sep.notes[0] || "analysis ran on the full mix."}`)
     : "";
 
-  // transcription: tab shown in full; chord charts are bulky so they collapse
+  // song facts: key / tempo / tuning as friendly chips
+  const facts = report.facts || {};
+  const factsEl = $("facts");
+  factsEl.innerHTML = "";
+  if (facts.key) {
+    const tuning = facts.tuning_cents || 0;
+    const tuningTxt = Math.abs(tuning) < 15 ? "standard"
+      : `${Math.abs(tuning).toFixed(0)} cents ${tuning > 0 ? "sharp" : "flat"}`;
+    const items = [
+      ["Key", facts.key],
+      ["Tempo", `~${Math.round(facts.tempo_bpm || 0)} BPM`],
+      ["Tuning", tuningTxt],
+    ];
+    factsEl.innerHTML = items.map(([k, v]) =>
+      `<span class="fact">${esc(k)} <b>${esc(v)}</b></span>`).join("");
+    factsEl.title = "Best guesses from the audio: key can be confused by key " +
+      "changes, tempo by half/double-time feels.";
+  }
+
+  // transcription: tab shown in full; chord charts appear as chord diagrams
+  // with the bulky timed chart tucked behind a toggle
   const tr = report.transcription || {};
   const heading = $("transcription-heading");
   const body = $("transcription-body");
   const note = $("classification-note");
   const chordsDetails = $("chords-details");
+  const diagrams = $("chord-diagrams");
   chordsDetails.hidden = true;
   chordsDetails.open = false;
   body.hidden = false;
+  diagrams.innerHTML = "";
   if (tr.kind === "lead") {
     heading.textContent = "Tab";
     body.textContent = tr.tab || "(empty)";
-    note.textContent = "Read as a lead line: " + (tr.classification?.rationale || "");
+    note.textContent = "This part plays one note at a time, so you get a tab. " +
+      "It's one comfortable way to play it, not the only way.";
+    note.title = tr.classification?.rationale || "";
   } else if (tr.kind === "rhythm") {
-    heading.textContent = "Rhythm part";
+    heading.textContent = "Chords";
     body.hidden = true;
-    note.textContent = "Read as a chordal part: " +
-      (tr.classification?.rationale || "");
+    body.textContent = "";
     const chords = (tr.chords || []).filter((c) => c.chord !== "N");
-    if (chords.length) {
-      const dur = {};
-      for (const c of chords) dur[c.chord] = (dur[c.chord] || 0) + (c.end - c.start);
-      const top = Object.entries(dur).sort((a, b) => b[1] - a[1]).slice(0, 4)
-        .map(([name]) => name);
-      note.textContent += ` Mostly ${top.join(", ")}.`;
-    }
+    const dur = {};
+    for (const c of chords) dur[c.chord] = (dur[c.chord] || 0) + (c.end - c.start);
+    const total = Object.values(dur).reduce((a, b) => a + b, 0) || 1;
+    const top = Object.entries(dur).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    note.textContent = "This part strums chords. Here's what it leans on:";
+    note.title = tr.classification?.rationale || "";
+    renderChordDiagrams(diagrams, top, total);
     $("chords-body").textContent = tr.chart || "(empty)";
     chordsDetails.hidden = false;
   } else {
@@ -303,23 +340,36 @@ function renderReport(job, report) {
   renderTimeline(report);
   renderToneScope();
 
-  // measurements
+  // measurements, labeled for humans; the technical meaning rides in tooltips
   const f = (report.tone || {}).features || {};
   const dl = $("measurements");
   dl.innerHTML = "";
   const rows = [
-    ["level", f.rms_db != null ? f.rms_db + " dB RMS" : null],
-    ["crest factor", f.crest_db != null ? f.crest_db + " dB" : null],
-    ["clipping ratio", f.flat_top_ratio],
-    ["harmonic index", f.harmonic_distortion],
-    ["brightness", f.spectral_centroid_hz != null ? f.spectral_centroid_hz + " Hz" : null],
-    ["spectral tilt", f.tilt_db_per_octave != null ? f.tilt_db_per_octave + " dB/oct" : null],
-    ["decay (T60 est.)", f.decay_t60_s != null ? f.decay_t60_s + " s" : null],
-    ["dynamic range", f.dynamic_range_db != null ? f.dynamic_range_db + " dB" : null],
+    ["loudness", f.rms_db != null ? f.rms_db + " dB" : null,
+     "average level of the track (RMS)"],
+    ["spikiness", f.crest_db != null ? f.crest_db + " dB" : null,
+     "gap between the loudest peaks and the average; low = squashed by " +
+     "compression or distortion (crest factor)"],
+    ["clipping", f.flat_top_ratio,
+     "how often the waveform slams into its ceiling; distortion literally " +
+     "flattens the wave tops"],
+    ["extra harmonics", f.harmonic_distortion,
+     "overtone energy versus the note itself; drive pedals add overtones"],
+    ["brightness", f.spectral_centroid_hz != null
+     ? Math.round(f.spectral_centroid_hz) + " Hz" : null,
+     "where the energy sits: higher = brighter tone (spectral centroid)"],
+    ["dark ↔ bright lean", f.tilt_db_per_octave != null
+     ? f.tilt_db_per_octave + " dB/oct" : null,
+     "negative leans dark/warm, closer to zero leans bright (spectral tilt)"],
+    ["ring-out time", f.decay_t60_s != null ? f.decay_t60_s + " s" : null,
+     "how long sound takes to fade after notes stop; long = reverb or big sustain"],
+    ["dynamics", f.dynamic_range_db != null ? f.dynamic_range_db + " dB" : null,
+     "spread between loud and quiet moments"],
   ];
-  for (const [k, v] of rows) {
+  for (const [k, v, hint] of rows) {
     if (v == null) continue;
     const div = document.createElement("div");
+    div.title = hint;
     div.innerHTML = `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`;
     dl.appendChild(div);
   }
@@ -334,6 +384,119 @@ function renderReport(job, report) {
   }
 
   show("report-view");
+}
+
+/* ---------- chord diagrams ---------- */
+
+// Hand shapes for the everyday chords, frets low E → high e (-1 = don't play).
+const OPEN_SHAPES = {
+  "C": [-1, 3, 2, 0, 1, 0], "A": [-1, 0, 2, 2, 2, 0], "G": [3, 2, 0, 0, 0, 3],
+  "E": [0, 2, 2, 1, 0, 0], "D": [-1, -1, 0, 2, 3, 2], "F": [-1, -1, 3, 2, 1, 1],
+  "Am": [-1, 0, 2, 2, 1, 0], "Em": [0, 2, 2, 0, 0, 0], "Dm": [-1, -1, 0, 2, 3, 1],
+  "A7": [-1, 0, 2, 0, 2, 0], "B7": [-1, 2, 1, 2, 0, 2], "C7": [-1, 3, 2, 3, 1, 0],
+  "D7": [-1, -1, 0, 2, 1, 2], "E7": [0, 2, 0, 1, 0, 0], "G7": [3, 2, 0, 0, 0, 1],
+  "Am7": [-1, 0, 2, 0, 1, 0], "Dm7": [-1, -1, 0, 2, 1, 1], "Em7": [0, 2, 0, 0, 0, 0],
+  "Cmaj7": [-1, 3, 2, 0, 0, 0], "Amaj7": [-1, 0, 2, 1, 2, 0],
+  "Dmaj7": [-1, -1, 0, 2, 2, 2], "Fmaj7": [-1, -1, 3, 2, 1, 0],
+  "Gmaj7": [3, 2, 0, 0, 0, 2],
+};
+
+const PC_INDEX = { "C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6,
+                   "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11 };
+
+// Movable barre templates (offset added to every non-negative fret; 0 = the barre)
+const BARRE = {
+  "E":  { "": [0, 2, 2, 1, 0, 0], "m": [0, 2, 2, 0, 0, 0],
+          "7": [0, 2, 0, 1, 0, 0], "m7": [0, 2, 0, 0, 0, 0] },
+  "A":  { "": [-1, 0, 2, 2, 2, 0], "m": [-1, 0, 2, 2, 1, 0],
+          "7": [-1, 0, 2, 0, 2, 0], "m7": [-1, 0, 2, 0, 1, 0],
+          "maj7": [-1, 0, 2, 1, 2, 0] },
+};
+
+function chordShape(label) {
+  if (OPEN_SHAPES[label]) return { frets: OPEN_SHAPES[label], base: 1 };
+  const m = label.match(/^([A-G]#?)(maj7|m7|m|7)?$/);
+  if (!m) return null;
+  const pc = PC_INDEX[m[1]];
+  const quality = m[2] || "";
+  const fE = ((pc - 4) % 12 + 12) % 12 || 12;   // barre fret on the E string
+  const fA = ((pc - 9) % 12 + 12) % 12 || 12;   // barre fret on the A string
+  const candidates = [];
+  if (BARRE.E[quality]) candidates.push({ f: fE, tpl: BARRE.E[quality] });
+  if (BARRE.A[quality]) candidates.push({ f: fA, tpl: BARRE.A[quality] });
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.f - b.f);
+  const { f, tpl } = candidates[0];
+  return { frets: tpl.map((v) => (v < 0 ? -1 : v + f)), base: f };
+}
+
+function chordSVG(shape) {
+  const { frets, base } = shape;
+  const left = 14, top = 24, w = 68, h = 80, cols = 5, rows = 5;
+  const sx = (i) => left + (i * w) / cols;   // string x (0..5)
+  const fy = (i) => top + (i * h) / rows;    // fret line y (0..5)
+  let s = "";
+  // strings and fret lines
+  for (let i = 0; i <= 5; i++) {
+    s += `<line class="cd-grid" x1="${sx(i)}" y1="${top}" x2="${sx(i)}" y2="${top + h}"/>`;
+  }
+  for (let i = 0; i <= rows; i++) {
+    s += `<line class="cd-grid" x1="${left}" y1="${fy(i)}" x2="${left + w}" y2="${fy(i)}"/>`;
+  }
+  if (base === 1) {
+    s += `<line class="cd-nut" x1="${left - 1}" y1="${top}" x2="${left + w + 1}" y2="${top}"/>`;
+  } else {
+    s += `<text class="cd-basefret" x="${left + w + 4}" y="${fy(1) - 4}">${base}fr</text>`;
+  }
+  // finger numbering: lowest frets first, barres get one finger
+  const fretted = frets.map((f, i) => ({ f, i })).filter((o) => o.f > 0);
+  const byFret = {};
+  for (const o of fretted) (byFret[o.f] = byFret[o.f] || []).push(o.i);
+  let next = 1;
+  const fingerOf = {};
+  for (const f of Object.keys(byFret).map(Number).sort((a, b) => a - b)) {
+    const strings = byFret[f];
+    if (strings.length >= 3 && next === 1) {           // barre
+      for (const i of strings) fingerOf[i] = 1;
+      next = 2;
+    } else {
+      for (const i of strings.sort((a, b) => a - b)) {
+        fingerOf[i] = Math.min(next, 4);
+        next += 1;
+      }
+    }
+  }
+  frets.forEach((f, i) => {
+    const x = sx(i);
+    if (f < 0) {
+      s += `<path class="cd-mute" d="M${x - 4} 10 l8 8 M${x + 4} 10 l-8 8" fill="none"/>`;
+    } else if (f === 0) {
+      s += `<circle class="cd-open" cx="${x}" cy="14" r="4"/>`;
+    } else {
+      const rel = f - base + 1;
+      const y = fy(rel) - h / rows / 2;
+      s += `<circle class="cd-dot" cx="${x}" cy="${y}" r="7"/>`;
+      if (fingerOf[i]) {
+        s += `<text class="cd-dot-num" x="${x}" y="${y + 3}"
+                text-anchor="middle">${fingerOf[i]}</text>`;
+      }
+    }
+  });
+  return `<svg viewBox="0 0 100 116" role="img">${s}</svg>`;
+}
+
+function renderChordDiagrams(container, topChords, totalDur) {
+  container.innerHTML = "";
+  for (const [name, dur] of topChords) {
+    const shape = chordShape(name);
+    const card = document.createElement("div");
+    card.className = "chord-card";
+    const share = Math.round((dur / totalDur) * 100);
+    card.innerHTML = (shape ? chordSVG(shape) : "") +
+      `<div class="chord-name">${esc(name)}</div>` +
+      `<div class="chord-share">${share}% of the song</div>`;
+    container.appendChild(card);
+  }
 }
 
 /* ---------- tone scope (whole song vs timeline section) ---------- */
@@ -451,8 +614,14 @@ function knobsForEffect(fx, feats, model) {
       ? { label: "drive", norm: db / 35, display: `${db.toFixed(0)} dB` }
       : { label: "drive", norm: fx.strength, display: `${Math.round(fx.strength * 100)}%` });
   } else if (effect === "compressor") {
-    knobs.push({ label: "squash", norm: fx.strength,
-                 display: `${Math.round(fx.strength * 100)}%` });
+    const ratio = mv(model, "comp_ratio");
+    if (ratio != null && ratio > 1.2) {
+      knobs.push({ label: "ratio", norm: (ratio - 1) / 7,
+                   display: `${ratio.toFixed(1)}:1` });
+    } else {
+      knobs.push({ label: "squash", norm: fx.strength,
+                   display: `${Math.round(fx.strength * 100)}%` });
+    }
   } else if (effect === "chorus") {
     const rate = mv(model, "chorus_rate_hz"), mix = mv(model, "chorus_mix");
     if (rate != null) knobs.push({ label: "rate", norm: rate / 4,
@@ -503,22 +672,30 @@ function renderToneScope() {
   $("tone-summary").textContent = est
     ? est.summary : "Tone analysis unavailable.";
 
+  // stompbox colors, muted: dirt = warm hues, time/space = cool hues
+  const PEDAL_HUES = {
+    "clean": 45, "edge-of-breakup": 80, "overdrive": 100, "distortion": 20,
+    "fuzz/high-gain": 0, "compressor": 205, "chorus": 175, "modulation": 320,
+    "delay": 235, "reverb": 280, "reverb (uncertain)": 280,
+  };
   const board = $("pedalboard");
   board.innerHTML = "";
   if (est) {
     for (const fx of est.chain) {
       const div = document.createElement("div");
       div.className = "pedal" + (fx.effect.includes("uncertain") ? " uncertain" : "");
+      div.style.setProperty("--ph", PEDAL_HUES[fx.effect] ?? 35);
       const dials = knobsForEffect(fx, feats, model)
         .map((k) => knobHTML(k.label, k.norm, k.display)).join("");
       const settings = Object.entries(fx.settings).map(([k, v]) =>
         `<div class="knob"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("");
       div.innerHTML = `
+        <span class="led"></span>
         <h3>${esc(fx.effect)}</h3>
         <div class="verdict">${esc(fx.verdict)}</div>
         <div class="dials">${dials}</div>
         <div class="knobs">${settings}</div>
-        <div class="evidence">${esc(fx.evidence)}</div>`;
+        <span class="why" title="${esc(fx.evidence)}">why this guess?</span>`;
       board.appendChild(div);
     }
   }
@@ -553,6 +730,8 @@ function renderModelStrip(params) {
     ["delay mix", fmt(params.delay_mix, (v) => `${Math.round(v * 100)}%`)],
     ["chorus rate", fmt(params.chorus_rate_hz, (v) => `${v.toFixed(1)} Hz`)],
     ["chorus mix", fmt(params.chorus_mix, (v) => `${Math.round(v * 100)}%`)],
+    ["compression", params.comp_ratio && params.comp_ratio.value > 1.2
+      ? `${params.comp_ratio.value.toFixed(1)}:1` : null],
   ].filter(([, v]) => v);
   $("modelstrip-values").innerHTML = pieces.map(([k, v]) =>
     `${esc(k)} <span class="mval">${esc(v)}</span>`).join(" &nbsp; ");

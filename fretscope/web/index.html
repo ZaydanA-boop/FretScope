@@ -4,50 +4,73 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FretScope</title>
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2316181c'/><circle cx='16' cy='16' r='9' fill='none' stroke='%23f0a63f' stroke-width='2.5'/><circle cx='16' cy='16' r='3' fill='%23f0a63f'/></svg>">
 </head>
 <body>
 
 <header class="topbar">
-  <div class="brand">
-    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.5"/>
-      <circle cx="16" cy="16" r="3.5" fill="currentColor"/>
-      <line x1="16" y1="5" x2="16" y2="10" stroke="currentColor" stroke-width="2"/>
-    </svg>
-    <span class="brand-name">FretScope</span>
+  <div class="topbar-left">
+    <button type="button" class="icon-btn" id="rack-toggle" title="Show/hide the library"
+            aria-label="Toggle sidebar">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="16" cy="16" r="3.5" fill="currentColor"/>
+        <line x1="16" y1="5" x2="16" y2="10" stroke="currentColor" stroke-width="2"/>
+      </svg>
+      <span class="brand-name">FretScope</span>
+    </div>
   </div>
+
+  <nav class="section-tabs" id="section-tabs" hidden>
+    <button type="button" data-target="panel-tone" class="active">Tone</button>
+    <button type="button" data-target="panel-match">Match</button>
+    <button type="button" data-target="panel-rig">Rig</button>
+    <button type="button" data-target="panel-transcription">Notes</button>
+    <button type="button" data-target="panel-data">Data</button>
+  </nav>
+
   <div class="health" id="health"></div>
 </header>
 
-<main class="layout">
+<main class="layout" id="layout">
 
-  <aside class="rack">
-    <form id="submit-form" class="input-panel">
-      <div class="input-title">New analysis</div>
-      <input id="source" type="text" autocomplete="off" spellcheck="false"
-             placeholder="Paste a YouTube link">
-      <div class="dropzone" id="dropzone">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 16V4m0 0l-4 4m4-4l4 4" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span>or drop an audio file here /
-          <button type="button" class="linklike" id="browse-btn">browse</button></span>
-        <input type="file" id="upload-file" accept="audio/*" hidden>
-      </div>
-      <div class="input-row">
-        <label class="check">
-          <input type="checkbox" id="use-separation" checked>
-          <span>Isolate guitar first (slower, better)</span>
-        </label>
-        <button type="submit" id="submit-btn">Analyze</button>
-      </div>
-      <p class="input-error" id="submit-error" hidden></p>
-    </form>
+  <aside class="rack" id="rack">
+    <details class="input-details" id="new-analysis" open>
+      <summary>
+        <span>New analysis</span>
+        <svg viewBox="0 0 24 24" class="chev"><path d="M6 9l6 6 6-6" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round"/></svg>
+      </summary>
+      <form id="submit-form" class="input-panel">
+        <input id="source" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Paste a YouTube link">
+        <div class="dropzone" id="dropzone">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 16V4m0 0l-4 4m4-4l4 4" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>or drop an audio file here /
+            <button type="button" class="linklike" id="browse-btn">browse</button></span>
+          <input type="file" id="upload-file" accept="audio/*" hidden>
+        </div>
+        <div class="input-row">
+          <label class="check">
+            <input type="checkbox" id="use-separation" checked>
+            <span>Isolate guitar first (slower, better)</span>
+          </label>
+          <button type="submit" id="submit-btn">Analyze</button>
+        </div>
+        <p class="input-error" id="submit-error" hidden></p>
+      </form>
+    </details>
 
     <div class="joblist-head"><h2>Library</h2></div>
     <ul class="joblist" id="joblist">
@@ -75,23 +98,21 @@
 
     <article id="report-view" hidden>
       <header class="report-head">
-        <div>
-          <h1 class="song-title" id="report-title"></h1>
-          <p class="song-sub" id="report-sub"></p>
-        </div>
-        <div class="player" id="player-wrap" hidden>
-          <span class="player-label">Isolated stem</span>
-          <audio controls preload="none" id="stem-audio"></audio>
-        </div>
+        <h1 class="song-title" id="report-title"></h1>
+        <p class="song-sub" id="report-sub"></p>
+        <div class="facts" id="facts"></div>
       </header>
 
-      <nav class="section-tabs" id="section-tabs">
-        <button type="button" data-target="panel-tone" class="active">Tone</button>
-        <button type="button" data-target="panel-match">Match</button>
-        <button type="button" data-target="panel-rig">Rig</button>
-        <button type="button" data-target="panel-transcription">Notes</button>
-        <button type="button" data-target="panel-data">Data</button>
-      </nav>
+      <div class="playerbar" id="player-wrap" hidden>
+        <svg viewBox="0 0 24 24" class="playerbar-ico" aria-hidden="true">
+          <path d="M9 18V6l10-2v12" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="6.5" cy="18" r="2.5" fill="currentColor"/>
+          <circle cx="16.5" cy="16" r="2.5" fill="currentColor"/>
+        </svg>
+        <span class="player-label">Isolated guitar</span>
+        <audio controls preload="none" id="stem-audio"></audio>
+      </div>
 
       <div class="banner" id="separation-banner"></div>
 
@@ -115,8 +136,8 @@
           <span class="conf-badge conf-estimated">estimated</span>
         </div>
         <p class="panel-note">Record yourself playing through your rig (or upload a
-          clip) and get directional adjustments toward the
-          <b id="match-scope">whole song</b> tone.</p>
+          clip). FretScope compares it to the
+          <b id="match-scope">whole song</b> and tells you what to turn.</p>
         <div class="match-controls">
           <button type="button" id="record-btn">Record</button>
           <span class="rec-timer" id="rec-timer" hidden>0:00</span>
@@ -135,13 +156,17 @@
           <h2>The rig</h2>
           <span class="conf-badge conf-estimated">estimated</span>
         </div>
-        <div class="pedalboard" id="pedalboard"></div>
+        <p class="panel-note">A pedalboard that should get you in the neighborhood.
+          Dial these in, then trust your ears over the numbers.</p>
+        <div class="board-wrap">
+          <div class="pedalboard" id="pedalboard"></div>
+        </div>
         <div class="amp" id="amp-eq"></div>
         <div class="modelstrip" id="modelstrip" hidden>
-          <span class="modelstrip-label">Model-predicted settings</span>
+          <span class="modelstrip-label">Suggested numbers</span>
           <span id="modelstrip-values"></span>
-          <span class="modelstrip-note">trained on synthesized effect chains, not
-            real amps; error margins are the model's own test error</span>
+          <span class="modelstrip-note">from a model trained on computer-generated
+            guitar sounds, so treat the ± as "roughly this far off"</span>
         </div>
       </section>
 
@@ -151,18 +176,21 @@
           <span class="conf-badge conf-heuristic" id="transcription-conf">heuristic</span>
         </div>
         <p class="panel-note" id="classification-note"></p>
+        <div class="chord-diagrams" id="chord-diagrams"></div>
         <pre class="tabview" id="transcription-body"></pre>
         <details class="chords-details" id="chords-details" hidden>
-          <summary>Show chord chart</summary>
+          <summary>Show the full timed chord chart</summary>
           <pre class="tabview" id="chords-body"></pre>
         </details>
       </section>
 
       <section class="panel" id="panel-data">
         <div class="panel-head">
-          <h2>Measurements</h2>
+          <h2>Under the hood</h2>
           <span class="conf-badge conf-verified">verified</span>
         </div>
+        <p class="panel-note">The raw measurements everything above is built from.
+          Hover any row for what it means.</p>
         <dl class="measurements" id="measurements"></dl>
       </section>
 
@@ -182,6 +210,6 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

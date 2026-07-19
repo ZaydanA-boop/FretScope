@@ -66,6 +66,8 @@ Key facts:
   (stored under jobs/uploads/); /api/health reports model_available; finished
   reports render once per job (re-rendering on poll ticks was resetting the stem
   player); static assets carry ?v= cache-busting (bump on every web/ change!).
+- 2026-07-18 third pass (user-directed one-shot: "improve everything, app-like UI,
+  lay-friendly"): see "Engine v3 + Dashboard v4" below.
 - Dashboard v3 (same day): full charcoal retheme — neutral zinc surfaces, amber
   is the ONLY warm element (user: "charcoal based rather than brown"). App-shell
   layout (fixed topbar with status chips, scrollable library rail, sticky
@@ -79,6 +81,40 @@ Key facts:
   found them bulky) with a "Mostly Am, C, F" one-liner instead; clickable timeline
   scopes the rig knobs AND the match target. Reports written before the
   subband-feature change still work (features_from_dict fills defaults).
+
+## Engine v3 + Dashboard v4 (2026-07-18 third pass)
+
+Engine:
+- Tone model retrained on 1400 clips with HARDER synthesis (palm-mute↔ringing
+  decay, random tone-knob lowpass, strums+riffs) and a new pedalboard Compressor
+  in the chains → new target comp_ratio (MAE ±1.2 over 1-8 range). MAEs went UP
+  vs the 700-clip model (drive ±3.5 dB vs ±2.6) because the held-out set is now
+  harder/more varied — that's more honest, not worse. Don't "fix" by removing
+  synthesis variety.
+- FRETSCOPE_DEMUCS_SHIFTS env (default 0): Demucs shift-trick averaging, each
+  shift ≈ proportional slowdown for a small quality gain. htdemucs_ft documented
+  as the slow/high-quality 4-stem alternative.
+- 7th-chord templates (7, maj7, m7) with two guards: 0.94 template weight AND a
+  7th must beat its own base triad by >0.02 similarity (string harmonics put the
+  major-7th ON plain triads — the third's 3rd harmonic IS the maj7).
+- transcription/musicfacts.py: key (Krumhansl-Schmuckler), tempo, tuning-offset
+  → report["facts"], shown as chips + in markdown. All heuristic-labeled.
+
+Dashboard v4 (app-like, lay-friendly):
+- Section tabs moved into the TOPBAR (hidden unless a report is open); sidebar
+  collapsible via hamburger (persisted in localStorage); "New analysis" is a
+  collapsible details card.
+- Stem player is a slim full-width pill bar under the title, no longer crammed
+  beside it.
+- Chord parts render as real SVG chord diagrams (OPEN_SHAPES dict + computed
+  E/A-shape barre fallbacks, finger numbering with barre detection) with "% of
+  the song"; timed chart stays behind a toggle.
+- Rig looks like a pedalboard: per-effect muted hues (--ph custom property),
+  LED, footswitch, white knobs on colored enclosures, board background strip.
+- Lay-language sweep: measurements renamed (spikiness, ring-out time, dark↔bright
+  lean) with tooltip explanations; pedal evidence lives behind a "why this
+  guess?" tooltip; classification notes are plain sentences (rationale in title
+  attr). Keep this register in future copy.
 
 ## Environment (this machine)
 
