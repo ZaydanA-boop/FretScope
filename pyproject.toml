@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fretscope"
-version = "0.1.0"
+version = "0.2.0"
 description = "Guitar Tone & Tab Analyzer: isolate the guitar in a song, transcribe it to tab/chords, and estimate the tone chain that produced it."
 readme = "README.md"
 license = {text = "MIT"}
