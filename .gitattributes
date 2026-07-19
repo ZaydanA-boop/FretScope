@@ -1,4 +1,4 @@
-# Normalize line endings: repo stores LF, checkouts follow platform defaults.
+# Line-ending normalization: the repo stores LF; checkouts follow platform defaults.
 * text=auto
 
 *.py text
