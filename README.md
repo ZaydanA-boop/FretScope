@@ -1,75 +1,106 @@
-# FretScope — Guitar Tone & Tab Analyzer
+# FretScope
 
-Feed it a song (YouTube link or audio file). It isolates the guitar, transcribes what's being
-played, and estimates *how it was made to sound* — then suggests amp/pedal settings to get you
-close.
+**Paste a song. Get the guitar back out of it — what was played, and how it was made to sound.**
 
-**What you get per song:**
+FretScope takes a YouTube link or audio file, isolates the guitar with source
+separation, transcribes what's being played, estimates the effect chain that shaped
+the tone, and then closes the loop: record yourself through your own rig and it
+tells you what to turn to get closer. Everything runs locally on CPU — no cloud,
+no GPU, no API keys.
 
-1. **Tab or chord chart** — lead lines become ASCII tab; chordal parts become a chord chart
-   with timings.
-2. **Tone breakdown** — measured audio characteristics (gain/distortion, reverb, EQ shape,
-   compression) mapped to effect *categories* and rough parameter ranges you can dial in on
-   your own gear, plus concrete settings predicted by a model trained on synthesized effect
-   chains (shipped with its own error bars).
-3. **Tone timeline** — where the tone *changes* within the song (clean verse, driven
-   chorus...), with a separate breakdown per section.
-4. **Tone matching** — record yourself playing through your rig in the dashboard and get
-   directional adjustments toward the song's tone ("add drive slightly, shorten the
-   reverb tail").
+## What you get per song
 
-## Honest limitations (read this)
-
-- **Guitar isolation** uses Demucs `htdemucs_6s`, which has a dedicated guitar stem. It is
-  the weak stem of the model family: expect some leakage of keys/synths in and guitar out.
-  If a song has lead and rhythm guitar at once, they will **not** be separated from each
-  other — no current model can do that. The report flags this.
-- **Tab output is one playable interpretation, not "the" tab.** The same pitch exists at
-  several fretboard positions; we pick positions with a playability heuristic (documented in
-  `CLAUDE.md`).
-- **Tone analysis is an estimate, never an identification.** No method reliably identifies a
-  specific pedal or amp from audio. We measure spectral/harmonic/temporal features and map
-  them to effect categories ("heavy overdrive, mid-scooped, large-room reverb") with suggested
-  starting settings. Every tone output is labeled `estimated`.
-
-## Quickstart
-
-```powershell
-# from the repo root (Windows)
-.venv\Scripts\activate
-pip install -e .[dev]
-# optional, heavy (torch): enables real stem separation
-pip install -e .[separation]
-
-# analyze a YouTube link end to end
-fretscope analyze "https://www.youtube.com/watch?v=..." --out jobs/
-
-# or a local file
-fretscope analyze path\to\song.mp3 --out jobs/
-
-# launch the dashboard (then open http://127.0.0.1:8321)
-fretscope serve
-```
-
-`ffmpeg` must be on PATH (or set `FRETSCOPE_FFMPEG`). Tests: `pytest`.
+| Output | How |
+|---|---|
+| **Isolated guitar stem** (playable in-browser) | Demucs `htdemucs_6s` dedicated guitar stem, with an energy-share fallback when the model misfiles the part |
+| **Tab** (lead parts) | pYIN pitch tracking + onset segmentation → Viterbi fret assignment over a hand-movement cost model |
+| **Chord sheet** (rhythm parts) | Chroma template matching (triads + 7ths) with decay hysteresis → SVG chord diagrams, a playback-synced chord ribbon, and chords aligned to Whisper-transcribed **lyrics** |
+| **Tone breakdown** | 18 audio features → effect categories (drive, compression, chorus, delay, reverb) + a random-forest model that predicts concrete settings (drive dB, reverb wet, delay ms...) with its own held-out error attached |
+| **Tone timeline** | Windowed features + change-point detection → per-section tone analysis ("clean verse, driven chorus") |
+| **Tone matching** | Record/upload your attempt → feature deltas vs the target → directional advice ("add drive slightly, shorten the reverb tail") |
+| **Song facts** | Key (Krumhansl-Schmuckler), tempo, tuning offset in cents |
 
 ## Architecture
 
-```
-audio in (YouTube / file)
-   │  audio_io: yt-dlp + ffmpeg → mono WAV
-   ▼
-separation: Demucs → "other" stem (guitar + everything not vocals/drums/bass)
-   ▼
-classify: polyphony estimate → lead (monophonic) vs rhythm (chordal)
-   ├─ lead   → pitch tracking (pYIN) → notes → fret placement heuristic → ASCII tab
-   └─ rhythm → chroma → chord template matching → chord chart
-   ▼
-tone: feature extraction (distortion, EQ curve, reverb decay, compression…)
-   ▼
-mapping: features → effect chain estimate + parameter ranges (labeled as estimates)
-   ▼
-report: JSON + human-readable markdown → dashboard
+```mermaid
+flowchart LR
+    A[YouTube link / audio file] --> B[yt-dlp + ffmpeg\nmono WAV, trimmed]
+    B --> C[Demucs 6-stem\nguitar + vocals stems]
+    C --> D{lead or rhythm?\npolyphony estimate}
+    D -->|lead| E[pYIN → notes →\nViterbi fretting → tab]
+    D -->|rhythm| F[chroma templates →\nchord spans + diagrams]
+    C --> G[vocals → faster-whisper\n→ timed lyrics + chords]
+    C --> H[18 tone features]
+    H --> I[heuristic mapper +\nrandom forest → settings]
+    H --> J[change-point detection\n→ tone timeline]
+    H --> K[your recording vs target\n→ matching advice]
+    E & F & G & I & J & K --> L[report JSON + web dashboard]
 ```
 
-See `CLAUDE.md` for current status and key decisions, `docs/SOP.md` for working conventions.
+The dashboard is a FastAPI server with a vanilla-JS front end (no build step),
+a thread-based job queue with on-disk state, and a charcoal UI where the section
+nav is a rendered electric guitar and effect estimates are drawn as stompboxes.
+
+## The interesting engineering bits
+
+- **Closed-loop tone matching sidesteps an unsolvable problem.** Identifying gear
+  from a recording is not reliably possible; *comparing two recordings* is easy and
+  useful. FretScope measures the same features on the song and on your attempt and
+  emits signed deltas as plain-English adjustments.
+- **The tone model is trained on data we synthesize ourselves.** ~1400 clips of
+  Karplus-Strong guitar (palm-muted to ringing, dark to bright) rendered through
+  pedalboard effect chains with *known* settings; a random forest inverts features
+  back to parameters. Every prediction ships with the model's held-out MAE, and the
+  training-domain gap (synthetic chains, not real amps) is disclosed in the UI.
+- **Chorus detection is model-only, and the failed attempts are documented.** Three
+  hand-crafted detectors (spectral-centroid wobble, per-bin envelope modulation,
+  cepstral delay tracking) could not separate chorus from note-rate structure; the
+  forest can, using two sub-band modulation features jointly with the rest. The
+  chain's chorus card exists only when the model is confident.
+- **Rhythm is an adversary.** Played notes pulse the envelope at the note rate, so
+  naive detectors hear every riff as tremolo and every repeated phrase as delay.
+  The modulation/echo detectors mask the onset rate and its harmonics (cost:
+  tempo-synced delay is invisible — documented). Similarly, a 7th chord must beat
+  its own base triad by a margin, because the third's 3rd harmonic *is* the major
+  7th, and every triad would otherwise relabel itself.
+- **Honesty is enforced, not aspirational.** Every report section carries a
+  confidence label (`verified` / `heuristic` / `estimated`); tone output is never
+  phrased as gear identification (a test fails if it is); known failure modes
+  (reverb vs distortion sustain, separation artifacts in matching) degrade to
+  labeled uncertainty instead of confident noise.
+
+## Quickstart (Windows shown; Linux/macOS equivalent)
+
+```powershell
+python -m venv .venv                      # Python 3.12 recommended
+.venv\Scripts\pip install -e .[dev]
+# heavy optional extras:
+.venv\Scripts\pip install -e .[separation]   # Demucs + torch (CPU is fine)
+.venv\Scripts\pip install -e .[lyrics]       # faster-whisper
+
+.venv\Scripts\fretscope serve             # open http://127.0.0.1:8321
+# or headless:
+.venv\Scripts\fretscope analyze "https://www.youtube.com/watch?v=..." --out jobs/
+```
+
+`ffmpeg` must be installed (`winget install Gyan.FFmpeg` / `apt install ffmpeg`).
+Everything except separation/lyrics works without the heavy extras — the pipeline
+degrades gracefully and says so in the report.
+
+Tests: `pytest` (56 tests, all on synthesized audio — no copyrighted recordings in
+the repo, no network calls).
+
+Retrain the tone model: `python -m fretscope.tone.train` (~30 min CPU).
+
+## Honest limitations
+
+- Two guitars playing at once (lead + rhythm) cannot be separated — by anything,
+  including commercial tools. Every report says so.
+- Tab is *one playable interpretation*, chosen by a cost model. Bends, slides and
+  vibrato are not detected.
+- Tone settings are starting points inferred from audio features, not measurements
+  of the original rig.
+- Sung-lyric recognition mishears; lines are labeled heuristic.
+
+See `CLAUDE.md` for the full decision log and `docs/SOP.md` for the working
+conventions (confidence labels, commit style, plain-English-first rule).

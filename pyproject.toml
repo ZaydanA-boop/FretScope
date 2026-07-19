@@ -7,7 +7,13 @@ name = "fretscope"
 version = "0.1.0"
 description = "Guitar Tone & Tab Analyzer: isolate the guitar in a song, transcribe it to tab/chords, and estimate the tone chain that produced it."
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",

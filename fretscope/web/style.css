@@ -48,7 +48,7 @@ button { font: inherit; cursor: pointer; }
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 58px;
+  height: 72px;
   padding: 0 16px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-raised);
@@ -99,8 +99,8 @@ button { font: inherit; cursor: pointer; }
    riding on the neck. */
 .section-tabs {
   position: relative;
-  width: 620px;
-  height: 54px;
+  width: 780px;
+  height: 66px;
   flex: none;
 }
 .section-tabs[hidden] { display: none; }
@@ -127,15 +127,15 @@ button { font: inherit; cursor: pointer; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   background: none;
   border: none;
-  color: #b9c0ca;
-  font-size: 10.5px;
+  color: #c3c9d3;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.02em;
-  padding: 2px 6px;
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+  padding: 2px 10px;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
   transition: color 0.15s ease, transform 0.12s ease;
 }
 .gtr-neck button:hover { color: #fff; transform: translateY(-1px); }
@@ -143,9 +143,9 @@ button { font: inherit; cursor: pointer; }
   .gtr-neck button:hover { transform: none; }
 }
 .gtr-neck button svg {
-  width: 24px;
-  height: 24px;
-  padding: 3px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
   border-radius: 50%;
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -157,11 +157,13 @@ button { font: inherit; cursor: pointer; }
               inset 0 1px 0 rgb(255 255 255 / 0.4);
 }
 
-@media (max-width: 1240px) {
-  .section-tabs { width: 480px; }
-  .gtr-neck button span { display: none; }    /* icons only when tight */
+/* labels always stay with their icons; the bar shrinks, then bows out */
+@media (max-width: 1360px) {
+  .section-tabs { width: 640px; }
+  .gtr-neck button { font-size: 11px; padding: 2px 6px; }
+  .gtr-neck button svg { width: 24px; height: 24px; }
 }
-@media (max-width: 1000px) {
+@media (max-width: 1120px) {
   .section-tabs { display: none; }
 }
 
@@ -181,7 +183,7 @@ button { font: inherit; cursor: pointer; }
 .layout {
   display: grid;
   grid-template-columns: 330px 1fr;
-  height: calc(100dvh - 58px);
+  height: calc(100dvh - 72px);
   transition: grid-template-columns 0.22s ease;
 }
 .layout.rack-hidden { grid-template-columns: 0px 1fr; }

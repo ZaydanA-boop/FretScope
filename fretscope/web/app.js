@@ -523,8 +523,11 @@ function renderChordRibbon(chords) {
     const block = document.createElement("button");
     block.type = "button";
     block.className = "rseg" + (c.chord === "N" ? " rest" : "");
+    // never truncate a chord name: width fits the label, then scales with time
+    const label = c.chord === "N" ? "" : c.chord;
+    const labelPx = 18 + label.length * 9;
     const px = Math.max((c.end - c.start) * PX_PER_SECOND,
-                        c.chord === "N" ? 8 : 34);
+                        c.chord === "N" ? 8 : labelPx);
     block.style.width = `${Math.round(px)}px`;
     block.textContent = c.chord === "N" ? "" : c.chord;
     block.title = `${c.chord === "N" ? "no chord" : c.chord} · ` +
@@ -973,7 +976,17 @@ tabsNav.addEventListener("click", (ev) => {
   const btn = ev.target.closest("button[data-target]");
   if (!btn) return;
   const el = $(btn.dataset.target);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!el) return;
+  // scroll the stage pane directly: deterministic in a nested scroll container
+  const stage = $("stage");
+  const top = el.getBoundingClientRect().top - stage.getBoundingClientRect().top
+              + stage.scrollTop - 12;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  stage.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
+  // reflect the choice immediately instead of waiting for the scroll-spy
+  for (const b of tabsNav.querySelectorAll("button")) {
+    b.classList.toggle("active", b === btn);
+  }
 });
 
 // scroll-spy: highlight the tab of the section nearest the top of the stage
