@@ -1,6 +1,6 @@
 # Decision log
 
-Why FretScope is built the way it is — including the approaches that failed.
+Why FretScope is built the way it is, including the approaches that failed.
 
 ## Separation
 
