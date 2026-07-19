@@ -217,11 +217,9 @@ Dashboard v4 (app-like, lay-friendly):
   copyrighted audio in the repo, no network in tests.
 - All user-facing numbers from tone analysis carry a range, not a point value.
 
-## Pushing to GitHub (one-time setup)
+## GitHub
 
-```powershell
-gh auth login          # pick GitHub.com → HTTPS → login with browser
-gh repo create fretscope --private --source . --push
-```
-
-(`gh` was installed via winget; open a fresh terminal so it's on PATH.)
+Live at https://github.com/ZaydanA-boop/FretScope (public, pushed 2026-07-19 via
+Git Credential Manager; `gh` CLI installed but not authenticated). CI runs the
+test suite on every push. README references docs/screenshots/*.png — the user
+still needs to add those four PNG files.
