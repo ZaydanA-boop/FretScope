@@ -8,6 +8,15 @@ the tone, and then closes the loop: record yourself through your own rig and it
 tells you what to turn to get closer. Everything runs locally on CPU — no cloud,
 no GPU, no API keys.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Analysis pipeline running](docs/screenshots/progress.png) | ![Tone report with timeline](docs/screenshots/report-tone.png) |
+| *Live stage progress: download → separate → transcribe → tone* | *Key/tempo/tuning, isolated stem player, tone timeline* |
+| ![Estimated pedalboard](docs/screenshots/rig.png) | ![Chords and synced lyrics](docs/screenshots/chords-lyrics.png) |
+| *The estimated rig, drawn as stompboxes with model-predicted settings* | *Chord diagrams, playback-synced chord ribbon, lyrics with chords* |
+
 ## What you get per song
 
 | Output | How |

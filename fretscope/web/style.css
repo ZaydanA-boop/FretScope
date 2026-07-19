@@ -400,6 +400,8 @@ button { font: inherit; cursor: pointer; }
   padding-top: 14vh;
   text-align: center;
 }
+/* author display rules beat the UA's [hidden] rule, so restate it */
+.stage-empty[hidden] { display: none; }
 .stage-empty-art { width: 90px; color: var(--line); }
 
 .song-title { font-size: 24px; letter-spacing: -0.015em; line-height: 1.2; }
