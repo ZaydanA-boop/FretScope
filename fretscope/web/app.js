@@ -453,7 +453,7 @@ function chordShape(label) {
 
 function chordSVG(shape) {
   const { frets, base } = shape;
-  const left = 26, top = 24, w = 64, h = 80, cols = 5, rows = 5;
+  const left = 16, top = 24, w = 62, h = 80, cols = 5, rows = 5;
   const sx = (i) => left + (i * w) / cols;   // string x (0..5)
   const fy = (i) => top + (i * h) / rows;    // fret line y (0..5)
   let s = "";
@@ -467,9 +467,9 @@ function chordSVG(shape) {
   if (base === 1) {
     s += `<line class="cd-nut" x1="${left - 1}" y1="${top}" x2="${left + w + 1}" y2="${top}"/>`;
   } else {
-    // position label sits LEFT of the first fret row so it never collides
-    s += `<text class="cd-basefret" x="${left - 6}" y="${fy(1) - h / rows / 2 + 3}"
-            text-anchor="end">${base}fr</text>`;
+    // position label in its own right-side gutter, clear of dots and grid
+    s += `<text class="cd-basefret" x="${left + w + 9}" y="${fy(1) - h / rows / 2 + 3}"
+            text-anchor="start">${base}fr</text>`;
   }
   // finger numbering: lowest frets first, barres get one finger
   const fretted = frets.map((f, i) => ({ f, i })).filter((o) => o.f > 0);
@@ -505,7 +505,7 @@ function chordSVG(shape) {
       }
     }
   });
-  return `<svg viewBox="0 0 100 116" role="img">${s}</svg>`;
+  return `<svg viewBox="0 0 118 116" role="img">${s}</svg>`;
 }
 
 /* Chord ribbon: the song as a strip of chord blocks, synced to the stem player.
@@ -518,11 +518,14 @@ function renderChordRibbon(chords) {
   if (!spans.length) { wrap.hidden = true; return; }
   wrap.hidden = false;
   const audio = $("stem-audio");
+  const PX_PER_SECOND = 14;   // fixed scale so long songs scroll instead of squish
   for (const c of spans) {
     const block = document.createElement("button");
     block.type = "button";
     block.className = "rseg" + (c.chord === "N" ? " rest" : "");
-    block.style.flexGrow = String(Math.max(c.end - c.start, 0.5));
+    const px = Math.max((c.end - c.start) * PX_PER_SECOND,
+                        c.chord === "N" ? 8 : 34);
+    block.style.width = `${Math.round(px)}px`;
     block.textContent = c.chord === "N" ? "" : c.chord;
     block.title = `${c.chord === "N" ? "no chord" : c.chord} · ` +
       `${fmtTime(c.start)} to ${fmtTime(c.end)}`;
@@ -535,12 +538,22 @@ function renderChordRibbon(chords) {
   }
 }
 
-// follow playback: light up the chord under the playhead
+// follow playback: light up the chord under the playhead and keep it in view
+let lastPlayingBlock = null;
 $("stem-audio").addEventListener("timeupdate", (ev) => {
   const t = ev.target.currentTime;
+  let playing = null;
   for (const b of document.querySelectorAll(".chord-ribbon .rseg")) {
     const on = t >= +b.dataset.start && t < +b.dataset.end;
     b.classList.toggle("playing", on);
+    if (on) playing = b;
+  }
+  if (playing && playing !== lastPlayingBlock) {
+    lastPlayingBlock = playing;
+    const ribbon = $("chord-ribbon");
+    const target = playing.offsetLeft - ribbon.clientWidth / 2 +
+                   playing.offsetWidth / 2;
+    ribbon.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
   }
 });
 
@@ -754,7 +767,10 @@ function renderToneScope() {
         <div class="verdict">${esc(fx.verdict)}</div>
         <div class="dials">${dials}</div>
         <div class="knobs">${settings}</div>
-        <span class="why" title="${esc(fx.evidence)}">why this guess?</span>`;
+        <details class="why-details">
+          <summary>why this guess?</summary>
+          <div class="why-pop">${esc(fx.evidence)}</div>
+        </details>`;
       board.appendChild(div);
     }
   }
